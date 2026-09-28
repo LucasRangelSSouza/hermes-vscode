@@ -103,13 +103,16 @@ try {
   await client.call('session/prompt', { sessionId: session.sessionId, prompt: [{ type: 'text', text: 'RUNTOOL please' }] });
   check(text.join('').includes('hello-from-bash') && tools.includes('completed'), 'terminal tool ran through the runtime shell');
   const snapshotDir = path.join(paths.home, 'cache', 'terminal');
-  const beforePurge = fs.existsSync(snapshotDir)
-    ? fs.readdirSync(snapshotDir).some((f) => fs.readFileSync(path.join(snapshotDir, f), 'utf8').includes(KEY))
-    : false;
-  check(beforePurge, 'known finding: the terminal tool writes the key into a shell snapshot on disk (cache/terminal)');
+  const snapshotFiles = fs.existsSync(snapshotDir) ? fs.readdirSync(snapshotDir).filter((f) => f.startsWith('hermes-snap-')) : [];
+  const leaked = snapshotFiles.some((f) => fs.readFileSync(path.join(snapshotDir, f), 'utf8').includes(KEY));
+  if (snapshotFiles.length > 0) {
+    check(leaked, 'known finding (this platform/backend): the terminal tool writes the key into a shell snapshot on disk (cache/terminal)');
+  } else {
+    console.log(`INFO  no terminal snapshot file was produced on this platform (${process.platform}); the purge below is still exercised as a no-op`);
+  }
   purgeTerminalSnapshots(paths.home);
   const afterPurge = fs.existsSync(snapshotDir) ? fs.readdirSync(snapshotDir).some((f) => f.startsWith('hermes-snap-')) : true;
-  check(!afterPurge, 'purgeTerminalSnapshots removes the snapshot (called before every launch and on deactivate)');
+  check(!afterPurge, 'purgeTerminalSnapshots leaves no snapshot behind (called before every launch and on deactivate)');
   client.stop();
   await new Promise((r) => setTimeout(r, 1500));
 
