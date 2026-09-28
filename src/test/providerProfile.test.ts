@@ -102,7 +102,8 @@ test('the redactor masks registered secrets and common token shapes', () => {
   registerSecret('my-custom-secret-value');
   assert.equal(redact('key=my-custom-secret-value ok'), 'key=*** ok');
   assert.equal(redact('Authorization: Bearer abcdefghijklmnop12345'), 'Authorization: Bearer ***');
-  assert.equal(redact('token ghp_abcdefghijklmnopqrstuvwxyz0123456789'), 'token ***');
+  const pat = ['ghp', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('_'); // built at run time so scanners do not flag the fixture
+  assert.equal(redact(`token ${pat}`), 'token ***');
   assert.equal(redact('sk-abcdefghijklmnop1234'), 'sk-***');
   assert.equal(redact('nothing to hide'), 'nothing to hide');
   clearSecrets();

@@ -4,7 +4,7 @@ const vscode = require('vscode');
 
 const COMMANDS = [
   'openChat', 'newSession', 'setup', 'configureProvider', 'testConnection', 'installRuntime',
-  'selectPortableRuntime', 'runtimeStatus', 'selectProfile', 'selectEditApprovalMode', 'restartAgent', 'showLogs',
+  'selectPortableRuntime', 'runtimeStatus', 'configureSkills', 'syncSkills', 'selectProfile', 'selectEditApprovalMode', 'restartAgent', 'showLogs',
 ].map((c) => `hermesRangelTech.${c}`);
 
 exports.run = async function run() {

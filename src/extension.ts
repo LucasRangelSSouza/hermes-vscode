@@ -18,6 +18,7 @@ import { redact } from './secrets/redactor';
 import { RuntimeService } from './runtimeService';
 import type { ResolvedRuntime } from './runtimeService';
 import { ProviderService } from './providerService';
+import { SkillsService } from './skillsService';
 import {
   EDIT_APPROVAL_MODES,
   EditApprovalModeId,
@@ -234,6 +235,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const runtimeService = new RuntimeService(context, logLine);
   const providerService = new ProviderService(context, logLine, runtimeService.paths.state);
+  const skillsService = new SkillsService(context, logLine, runtimeService.paths);
 
   // CLI executable of the runtime in use. Filled in by ensureConnected.
   let hermesPath = '';
@@ -468,6 +470,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
     vscode.commands.registerCommand('hermesRangelTech.testConnection', () => providerService.testActive()),
+    vscode.commands.registerCommand('hermesRangelTech.configureSkills', async () => {
+      if (await skillsService.configure()) await restartIfRunning();
+    }),
+    vscode.commands.registerCommand('hermesRangelTech.syncSkills', async () => {
+      const outcome = await skillsService.syncNow('manual');
+      if (outcome?.state === 'updated') await restartIfRunning();
+    }),
     vscode.commands.registerCommand('hermesRangelTech.installRuntime', async () => {
       const wasRunning = client?.running ?? false;
       if (wasRunning) client?.stop();
@@ -560,6 +569,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       client.setLaunchArgs(resolved.entryArgs);
+      await skillsService.prepareForLaunch(resolved);
     } else {
       // An existing Hermes keeps its own home, profiles and provider settings.
       launchEnv = { ...process.env, ...debugEnv };
@@ -598,6 +608,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vscode.window.showErrorMessage(`Hermes: failed to start — ${err}`);
     }
   }
+
+  if (skillsService.syncOnStartup() && skillsService.config()) void skillsService.syncNow('startup');
 
   // Auto-connect
   if (vscode.workspace.isTrusted) {

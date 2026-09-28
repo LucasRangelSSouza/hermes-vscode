@@ -107,6 +107,14 @@
         "title": "Hermes: Show Runtime Status"
       },
       {
+        "command": "hermesRangelTech.configureSkills",
+        "title": "Hermes: Configure Skills Sync"
+      },
+      {
+        "command": "hermesRangelTech.syncSkills",
+        "title": "Hermes: Sync Skills Now"
+      },
+      {
         "command": "hermesRangelTech.selectProfile",
         "title": "Hermes: Select Profile"
       },
@@ -217,6 +225,36 @@
           "type": "boolean",
           "default": false,
           "description": "Enable diagnostic ACP logs in the Hermes output channel."
+        },
+        "hermesRangelTech.skills.repository": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "GitHub repository with your Hermes skills, as owner/repo. Change it with Hermes: Configure Skills Sync. The token is kept in Secret Storage."
+        },
+        "hermesRangelTech.skills.branch": {
+          "type": "string",
+          "default": "main",
+          "scope": "machine-overridable",
+          "description": "Branch to sync."
+        },
+        "hermesRangelTech.skills.path": {
+          "type": "string",
+          "default": "skills",
+          "scope": "machine-overridable",
+          "description": "Folder inside the repository that holds the skills."
+        },
+        "hermesRangelTech.skills.syncOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine-overridable",
+          "description": "Sync the skills repository when VS Code starts."
+        },
+        "hermesRangelTech.skills.syncBeforeLaunch": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine-overridable",
+          "description": "Sync the skills repository just before Hermes starts (with a 20 second limit)."
         }
       }
     }

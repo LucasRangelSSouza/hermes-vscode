@@ -10,7 +10,8 @@ First release of Hermes by Rangel Tech, derived from `hermes-vscode` 3.6.0.
 - Provider wizard for OpenAI-compatible endpoints with a four-step connection test (reach, auth, model, inference) and classified errors.
 - API keys in VS Code Secret Storage, passed to Hermes only through the process environment. Log redaction for keys and tokens.
 - Private Hermes home so the extension never touches an existing `~/.hermes`.
-- Commands: Setup, Configure Provider, Test Provider Connection, Install or Repair Runtime, Select Portable Runtime Folder, Show Runtime Status, Show Logs.
+- Commands: Setup, Configure Provider, Test Provider Connection, Configure Skills Sync, Sync Skills Now, Install or Repair Runtime, Select Portable Runtime Folder, Show Runtime Status, Show Logs.
+- Skills sync (pull only): a GitHub repository folder is mirrored through the REST API, without Git, and Hermes reads it as an external skills directory. Sync on startup and before launch, private repositories through a Secret Storage token, a trust prompt on first use, and no silent overwrite of hand edits.
 - Windows x64 and Linux x64 runtimes built by CI on native runners.
 
 ### Changed
