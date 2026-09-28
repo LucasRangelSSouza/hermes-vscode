@@ -9,3 +9,5 @@ out-test/
 
 docs/spikes/s0/mock.log
 docs/spikes/s0/mock.out
+
+scripts/.coding-task-acceptance/

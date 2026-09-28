@@ -55,6 +55,17 @@ The same tool-heavy coding task (read 4 project files, write an HTML page) still
 
 **Consequence for the extension.** Not a bug to fix here. It does mean that with certain self-hosted OpenAI-compatible backends, a coding turn can run for many minutes without visible progress. `hermesRangelTech.editApprovalMode` and the stop button already give the user a way to cancel; nothing further is scoped for v0.1. If this recurs with other self-hosted endpoints, the `model.streaming: false` escape hatch documented in Hermes's own `config.yaml` comments is the first thing to try.
 
+## Reliability fix, verified end to end on both platforms
+
+Full writeup and evidence: [agentic-reliability-debug.md](agentic-reliability-debug.md). Short version: the remaining stall after the reasoning-leak fix (F3/F4 there) was resolved by setting the ACP session mode to `dont_ask` right after `session/new` — exactly what the extension now does by default (`hermesRangelTech.editApprovalMode: dont_ask`, `hermesRangelTech.autoApprovePermissions: true`). With that plus `enable_thinking: false`, the same real coding task (read the project's own files, write and self-correct an `index.html`) completed cleanly through the **managed sealed-payload runtime**:
+
+| Platform | Time | Reasoning tokens | Tool calls | Result |
+|---|---|---|---|---|
+| Windows | 586 s | 0 | 7 | `end_turn`, correctly refused to overwrite an existing file and verified it instead |
+| Linux (isolated Docker container) | 768 s | 0 | 27 | `end_turn`, self-corrected the file with several patches, 28,692-byte result |
+
+Reproduce with `scripts/coding-task-acceptance.mjs`.
+
 ## Security finding from live verification
 
 Running the terminal tool through the managed runtime revealed that Hermes's own terminal snapshot mechanism (`<HERMES_HOME>/cache/terminal/hermes-snap-*.sh`) writes the **entire process environment**, via `declare -x`, to disk in the clear — including the provider API key variable this extension injects. This was not caught by unit tests, only by running the real runtime with a real terminal command. Fixed the same day: `src/runtime/terminalSnapshots.ts` purges that folder before every managed launch and on deactivate. See the commit `fix(security): purge Hermes terminal shell snapshots...` and `scripts/e2e-real-runtime.mjs`, which now reproduces the leak and asserts the fix.

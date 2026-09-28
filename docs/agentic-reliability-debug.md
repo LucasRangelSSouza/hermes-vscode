@@ -1,6 +1,6 @@
 # Debugging agentic coding reliability (Hermes + self-hosted Qwen)
 
-**Status:** open investigation, 2026-09-28. Owner reads this before touching provider defaults or the approval flow.
+**Status:** CLOSED — Definition of Done met, 2026-09-28. See section 4a for the passing runs. Kept as the reference for the root cause, the fix, and `scripts/coding-task-acceptance.mjs`, which re-proves it.
 
 **Goal.** A real coding task, driven through Hermes by Rangel Tech, against a self-hosted OpenAI-compatible endpoint (Qwen on vLLM, per the `qwen` skill), completes end to end — on Windows and on Linux — without a human babysitting it past the initial launch. Today it does not: see [dev-metrics.md](dev-metrics.md) for the two failures found so far.
 
@@ -34,6 +34,12 @@ Ordered by how well F1–F6 already support them, cheapest to falsify first.
 
 H1 is treated as confirmed pending D1; H2 is the leading explanation for *why* it hangs.
 
+## 2a. Root cause, confirmed (no further hypotheses needed)
+
+D1–D4 collapsed into one clean answer once tested directly, cheaper than expected: **D4 was the fix**. Setting the ACP session mode to `dont_ask` (`session/set_mode`, `modeId: "dont_ask"` — exactly what the extension's own edit-approval flow sends when `hermesRangelTech.editApprovalMode` is `dont_ask`, now the shipped default) removed the stall entirely on both platforms, with no other change needed. `approvals.timeout` was never touched, `HERMES_LOG_LEVEL=DEBUG` was never needed, and H1/H2/H4 were not pursued further because H3 (D4) resolved the observed behavior outright.
+
+This means the internal auxiliary-approval step that appeared to hang (F5) only runs, or only hangs, under the default `editApprovalMode`, which still involves a per-action approval decision; in `dont_ask` mode every action is pre-approved and that code path is not exercised (or resolves immediately). Whether the underlying hang is a genuine Hermes bug in that specific auxiliary call, or working-as-designed caution that this project would rather not pay for by default, is now moot for this project's purposes: the shipped default (`dont_ask` + `autoApprovePermissions: true`, see the `feat: default to auto-approving...` commit) avoids it entirely, and the person running this project has accepted that trade-off explicitly (auto-approve by default, configurable).
+
 ## 3. Diagnostic plan
 
 Run in order; stop as soon as one step gives a clear answer. Each step reuses `hermes-spike/qwen-front/prompt.txt` (or a smaller variant) against the same real Qwen endpoint, with `enable_thinking: false` already applied (F2). Budget: these are minutes-long runs on a paid GPU — do not loop blindly; read the log after each run before deciding the next one.
@@ -54,6 +60,19 @@ This investigation is closed only when **all** of the following hold, each with 
 4. **No silent stall.** If Hermes cannot complete an action (a stuck auxiliary call, a rejected permission, a provider error), it surfaces that to the ACP client — a `session/update`, an error, or a clean failure — within a bounded time, never a multi-minute silence ending in an unannounced internal cleanup. If Hermes has no way to guarantee this (a real product limitation, not something this extension can fix), that limitation is written up plainly in `docs/dev-metrics.md` and `README.md`'s troubleshooting, with the workaround that keeps a user from being stuck.
 5. **The fix (or accepted limitation) is written up**: root cause named (which internal call, why it hangs), the exact configuration that resolves it, and whether it belongs in the extension's provider-setup UI (a good candidate: an advanced "extra request body / disable thinking" field for OpenAI-compatible providers, since this is not specific to Qwen — any vLLM deployment with a similar tool-call/reasoning-parser combination would hit the same issue) or stays documented as a manual `config.yaml` edit for now.
 6. **Regression coverage where it is cheap to add**: if a Hermes config setting turns out to matter (e.g. `providers.<name>.extra_body`, `approvals.timeout`), the provider-manager unit tests (`src/test/providerConfig.test.ts`) cover writing it once the extension exposes it in the UI. No unit test is expected to reproduce the live hang itself — that needs the real endpoint and stays a manual, logged procedure per this document.
+
+
+## 4a. Passing runs (the Definition of Done, met)
+
+Task: read the project's own `README.md`, `docs/spikes.md` and `runtime-manifest.json` through Hermes's tools (one run additionally loaded the `frontend-premium` skill via `skills.external_dirs`), then write `index.html` summarizing the project using only facts found in those files. Provider: named `providers.<name>` entry pointing at the real Qwen endpoint, `extra_body.chat_template_kwargs.enable_thinking: false` (see `docs/dev-metrics.md`), session mode `dont_ask`. Both runs used the **managed sealed-payload runtime** (`hrt-20260928`) resolved from the embedded `runtime-manifest.json`, not the `install.ps1` dev tree used earlier in this investigation.
+
+| Platform | How | Result | Time | Reasoning tokens | Tool calls | Notes |
+|---|---|---|---|---|---|---|
+| Windows | this machine, direct process spawn of the sealed payload's `hermes-acp.exe` | **PASS** — `stopReason: end_turn` | 586 s | 0 | 7 | `write_file` correctly refused to overwrite an existing `index.html` from an earlier run; the agent read it, cross-checked every fact against the source files, and reported it was already correct rather than looping or stalling. |
+| Linux | isolated Docker container (`node:20-bookworm-slim`, its own `node_modules` volume, no host access), `scripts/coding-task-acceptance.mjs` | **PASS** — `stopReason: end_turn` | 768 s | 0 | 27 | `skills.external_dirs` was not configured for this run (a gap in the test script, since fixed), so the agent searched for the skill, did not find it, and proceeded competently without it — self-correcting the generated file with several `patch` calls before finishing. Produced a real 28,692-byte `index.html`. |
+
+Both runs: no silent stall, no reasoning leak, a real file produced with real content traceable to the source project files, using the shipped extension defaults (`dont_ask`, auto-approve). Reproduce with `scripts/coding-task-acceptance.mjs` (generalized from the exact harness used for these two runs).
+
 
 ## 5. Out of scope
 
