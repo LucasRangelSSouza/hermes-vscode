@@ -253,33 +253,15 @@ function tarWithAbsoluteSymlink(): Buffer {
   return zlib.gzipSync(Buffer.concat(blocks));
 }
 
-test('a symlink with an absolute target is skipped on Windows and does not fail the install', async () => {
+test('symlinks are skipped on every platform, so neither a Windows privilege nor a Linux path-traversal guard can abort the install', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hrt-sym-'));
   try {
     const archive = path.join(dir, 'pack.tar.gz');
     fs.writeFileSync(archive, tarWithAbsoluteSymlink());
     const dest = path.join(dir, 'out');
-    const skipped = await extractPack(archive, dest, 'win32');
+    const skipped = await extractPack(archive, dest);
     assert.deepEqual(skipped, ['etc/mtab']);
     assert.equal(fs.readFileSync(path.join(dest, 'bin', 'hermes'), 'utf8'), 'hello');
     assert.ok(!fs.existsSync(path.join(dest, 'etc', 'mtab')));
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-});
-
-test('other platforms extract the same archive without treating the link as an error', async (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hrt-sym-'));
-  try {
-    const archive = path.join(dir, 'pack.tar.gz');
-    fs.writeFileSync(archive, tarWithAbsoluteSymlink());
-    const dest = path.join(dir, 'out');
-    let skipped: string[];
-    try {
-      skipped = await extractPack(archive, dest, 'linux');
-    } catch (err) {
-      if (process.platform === 'win32') { t.skip('this Windows user cannot create symlinks'); return; }
-      throw err;
-    }
-    assert.deepEqual(skipped, []);
-    assert.equal(fs.readFileSync(path.join(dest, 'bin', 'hermes'), 'utf8'), 'hello');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

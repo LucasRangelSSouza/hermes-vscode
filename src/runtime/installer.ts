@@ -226,11 +226,15 @@ async function ensureFreeSpace(dir: string, needed: number): Promise<void> {
 }
 
 /**
- * Extracts one pack. Symbolic links are skipped on Windows: creating them needs Developer Mode or
- * elevation, and the ones in the runtime (such as PortableGit's etc/mtab) are POSIX conveniences that
- * nothing depends on. Informational warnings are ignored; anything else is an error.
+ * Extracts one pack. Symbolic links are skipped everywhere, not only on Windows (where creating
+ * them needs Developer Mode or elevation): a Linux runtime build was found to include a symlink
+ * whose path is later written through by another entry, which node-tar refuses as a path-traversal
+ * guard (`TAR_SYMLINK_ERROR`) and which aborts the whole extraction. The runtime does not depend on
+ * these links; the loader/launcher scripts record real, resolved paths (confirmed in docs/spikes.md,
+ * S1 and S1b — the same skip already passed a full ACP round trip and a terminal tool call on
+ * Windows). Informational warnings are ignored; anything else is an error.
  */
-export async function extractPack(archive: string, dest: string, platform: NodeJS.Platform = process.platform): Promise<string[]> {
+export async function extractPack(archive: string, dest: string): Promise<string[]> {
   fs.mkdirSync(dest, { recursive: true });
   const skipped: string[] = [];
   const problems: string[] = [];
@@ -239,7 +243,7 @@ export async function extractPack(archive: string, dest: string, platform: NodeJ
     cwd: dest,
     preserveOwner: false,
     filter: (entryPath, entry) => {
-      if (platform === 'win32' && (entry as { type?: string }).type === 'SymbolicLink') {
+      if ((entry as { type?: string }).type === 'SymbolicLink') {
         skipped.push(entryPath);
         return false;
       }
