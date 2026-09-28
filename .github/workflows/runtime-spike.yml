@@ -1,0 +1,132 @@
+name: Runtime spike
+
+# Spike S1b/S8/S11: build Hermes's official sealed payload, relocate it, and prove it starts
+# and completes an ACP round trip with the network cut. Manual only; not part of the release path.
+
+on:
+  workflow_dispatch:
+    inputs:
+      hermes_ref:
+        description: Hermes tag or full commit SHA to build
+        required: true
+        default: v2026.9.24
+
+permissions:
+  contents: read
+
+jobs:
+  payload:
+    name: Payload (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      PAYLOAD: ${{ github.workspace }}/out/payload
+    steps:
+      - name: Check out this repository (spike scripts)
+        uses: actions/checkout@v4
+
+      - name: Check out Hermes at the requested ref
+        uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: ${{ inputs.hermes_ref }}
+          path: hermes-agent
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Record inputs
+        run: |
+          cd hermes-agent
+          echo "commit: $(git rev-parse HEAD)"
+          echo "describe: $(git describe --tags --always)"
+          git status --short | head -5
+
+      - name: Build the sealed payload (official stage driver)
+        working-directory: hermes-agent
+        run: |
+          mkdir -p ../out
+          start=$(date +%s)
+          python -m scripts.bundles.stage --out "$PAYLOAD" --ref HEAD
+          echo "build seconds: $(( $(date +%s) - start ))"
+
+      - name: Inspect payload
+        run: |
+          echo "--- top level"; ls -la "$PAYLOAD"
+          echo "--- size by part"; du -sh "$PAYLOAD"/* | sort -h
+          echo "--- tools"; ls "$PAYLOAD/tools" 2>/dev/null
+          echo "--- stamp"; find "$PAYLOAD" -maxdepth 3 -name 'install-stamp.json' -print -exec cat {} \; 2>/dev/null | head -40
+          echo "--- bin"; ls "$PAYLOAD/bin" 2>/dev/null
+
+      - name: Measure compressed size
+        run: |
+          cd out
+          start=$(date +%s)
+          tar -czf payload.tar.gz payload
+          ls -l payload.tar.gz | awk '{printf "tar.gz bytes: %s (%.0f MB)\n", $5, $5/1048576}'
+          echo "compress seconds: $(( $(date +%s) - start ))"
+          rm payload.tar.gz
+
+      - name: Relocate to a path with spaces and non-ASCII
+        run: |
+          dest="${{ github.workspace }}/out/mov ção teste"
+          mkdir -p "$dest"
+          mv "$PAYLOAD" "$dest/payload"
+          echo "MOVED=$dest/payload" >> "$GITHUB_ENV"
+          echo "moved to $dest/payload"
+
+      - name: Smoke, network cut (dead proxy), relocated payload
+        env:
+          HTTP_PROXY: http://127.0.0.1:9
+          HTTPS_PROXY: http://127.0.0.1:9
+          ALL_PROXY: http://127.0.0.1:9
+          NO_PROXY: 127.0.0.1,localhost
+          HERMES_RT_KEY: sk-SPIKE-CI-RELOCATED-LONGKEY-0001
+          SHOW_STDERR: '1'
+        run: |
+          set -x
+          export HERMES_HOME="${{ github.workspace }}/out/user home"
+          mkdir -p "$HERMES_HOME"
+          pick() { for c in "$MOVED/bin/$1.exe" "$MOVED/bin/$1"; do [ -e "$c" ] && { echo "$c"; return; }; done; }
+          HERMES=$(pick hermes); ACP=$(pick hermes-acp)
+          echo "hermes=$HERMES acp=$ACP"
+          echo "--- version"; time "$ACP" --version
+          echo "--- check"; time "$ACP" --check
+          echo "--- config"
+          "$HERMES" config set model.provider custom
+          "$HERMES" config set model.base_url http://127.0.0.1:8899/v1
+          "$HERMES" config set model.default mock-model
+          "$HERMES" config set model.api_key '${HERMES_RT_KEY}'
+          echo "--- round trip"
+          cd docs/spikes/s0
+          rm -f mock.log
+          node mock-openai.js > mock.out 2>&1 &
+          sleep 1
+          export HERMES_ACP_EXE="$ACP" ACP_CWD="$PWD"
+          node acp-client.js "say hello" | tee ../../../out/rt1.txt
+          node acp-client.js "RUNTOOL please" | tee ../../../out/rt2.txt
+          echo "--- mock saw"; cat mock.log | cut -c1-160
+          grep -q "Hello from the mock" ../../../out/rt1.txt
+          grep -q "hello-from-bash" ../../../out/rt2.txt
+          ! grep -q "Bearer no-key-required" <(grep chat/completions mock.log) || { echo "key not delivered"; exit 1; }
+
+      - name: Did anything try to update or install?
+        if: always()
+        run: |
+          echo "--- user PATH-related and self-update evidence in logs (empty is good)"
+          grep -rIl "completing source-update dependencies\|Installing agent-browser\|Installing cua-driver" "${{ github.workspace }}/out/user home" 2>/dev/null | head || true
