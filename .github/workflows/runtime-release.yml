@@ -28,7 +28,22 @@ jobs:
   prepare:
     name: Create release
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
+      - name: Choose the platforms to build
+        id: matrix
+        run: |
+          only="${{ inputs.only_platform }}"
+          win='{"os":"windows-latest","platform":"win32-x64","exe":".exe"}'
+          lin='{"os":"ubuntu-latest","platform":"linux-x64","exe":""}'
+          case "$only" in
+            win32-x64) items="$win" ;;
+            linux-x64) items="$lin" ;;
+            *) items="$win,$lin" ;;
+          esac
+          echo "matrix={\"include\":[$items]}" >> "$GITHUB_OUTPUT"
+
       - name: Create or reuse the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -46,19 +61,11 @@ jobs:
   build:
     name: Build (${{ matrix.platform }})
     needs: prepare
-    if: inputs.only_platform == 'all' || inputs.only_platform == '' || inputs.only_platform == matrix.platform
     runs-on: ${{ matrix.os }}
     timeout-minutes: 150
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: win32-x64
-            exe: .exe
-          - os: ubuntu-latest
-            platform: linux-x64
-            exe: ''
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     defaults:
       run:
         shell: bash
