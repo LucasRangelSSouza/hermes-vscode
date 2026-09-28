@@ -108,9 +108,9 @@ Each decision has a reason and a fallback so it can be reversed cheaply.
 *Existing Hermes mode* (product spec §7.3) keeps using the user's own home and never writes provider config.
 *Every* `~/.hermes` read in section 2.3 goes through one function, `hermesHome()`.
 
-**D3. Runtime is produced at its final path, from pinned inputs.** *Revised after spike S1 (see [spikes.md](spikes.md)).* The installed Hermes tree is **not relocatable**: shims hardcode absolute paths, state files embed the install root, and starting from a moved tree triggers a network-dependent self-update that also edits the user PATH. So the runtime is not a pre-built tree that gets moved. CI builds and verifies it, then ships the **pinned inputs** (Python archive, dependency wheels, PortableGit, ripgrep, Hermes source at a commit SHA) and the extension runs a deterministic, offline install at `<data>/runtime/<id>/`. Bundling the inputs keeps the client independent of GitHub, PyPI and npm at install time.
-*Open (S11):* how to make Hermes skip its startup self-update and never touch the user PATH. Until S11 passes, D3 is not implementable.
-*Rejected:* text-rewriting a moved tree (`state.db`, uv caches and PM state also embed the path), and running the official installer on the client (needs several external hosts and edits the PATH).
+**D3. Runtime is Hermes's own sealed payload, built in CI and extracted on the client.** *Revised twice; final form after spike S1b (see [spikes.md](spikes.md)).* A tree installed with the official installer is not relocatable, but the payload from Hermes's own build lane (`scripts/bundles/native_build.py`) is: it was moved to a path with spaces and non-ASCII characters, started in about one second, passed `--check` and a full ACP round trip with the network cut, on Windows and Linux. CI builds it on native runners, we split it into packs (section 6.7), and the extension downloads the packs from GitHub Releases, verifies them and extracts them to `<data>/runtime/<id>/`. The user never moves or copies anything.
+*Open (S11b):* confirm the payload never writes the user PATH.
+*Rejected:* shipping an installer-built tree (not relocatable), text-rewriting a moved tree, and running the official installer on the client.
 
 **D4. Launch through the interpreter, not the shim.** Spawn `<python> -m acp_adapter.entry` (documented as equivalent to `hermes acp`). Console-script shims embed absolute paths and break when a venv moves. The exact command line comes from `runtime.json` (section 6.3), so the extension does not hard-code the layout.
 
@@ -265,7 +265,7 @@ Runs on first activation and from a command. Steps map to the product spec §6: 
 A dedicated workflow, `runtime-build.yml`, per platform (`win32-x64`, `linux-x64`) on native runners:
 
 1. Check out the pinned Hermes tag and record the commit SHA.
-2. Run Hermes's official setup into a staging root with custom home and install dir, with the `acp` extra.
+2. Run Hermes's sealed-payload build: `python -S -B scripts/bundles/native_build.py --source <checkout> --work <dir> --cache <dir> --out <payload> --ref HEAD` (needs the host C toolchain that the runner provides: MSVC on Windows). The frontend driver (`scripts.bundles.stage`) is not used, see spikes.md.
 3. Record the versions and hashes it installed (from `pm/lock.json`), and generate `runtime.json`.
 4. Run the validator (`--version`, `--check`).
 5. Run the smoke test: start `acp_adapter.entry`, connect the fake ACP client, run one prompt against `MockOpenAIServer`, assert streamed output and one tool call round trip.
@@ -312,7 +312,25 @@ Each release publishes the runtime archive and a `.sha256` file next to the VSIX
 
 ### 6.6 Budget
 
-Size is unmeasured [assumption, spike S8]. Working budget: 400 MB compressed per platform, 1.5 GB extracted. If the measurement exceeds it, drop optional Hermes components (voice, wake, browser, web dashboard) at build time. First-run time on a typical corporate link is a release criterion, not a nice-to-have.
+Measured in spike S8: the complete core payload is about 2.1 GB compressed per platform (2,167 MB Windows, 2,039 MB Linux) and 5 to 7 GB extracted. Decision from Lucas: ship the complete system with all add-ons. Consequences:
+
+- The runtime is split into packs (section 6.7) because GitHub caps a release asset at 2 GB.
+- Download progress, resume, per-pack verification and a disk-space check before starting are release requirements, not extras.
+- `uv-cache` (1 to 2.5 GB) is only needed for offline rebuilds of a mutable environment. It ships as its own optional pack, and the first release measures whether the runtime works without it.
+
+### 6.7 Packs
+
+| Pack | Contents | Required |
+|---|---|---|
+| `core` | `hermes-agent`, `venv`, `pm-runtime`, `bin`, manifests, `tools/python`, `tools/uv`, `tools/ripgrep`, `tools/git` (Windows), `tools/node`, `tools/npm` | yes |
+| `browser` | `tools/chromium`, `tools/agent-browser` | default on |
+| `media` | `tools/ffmpeg` | default on |
+| `computer-use` | `tools/cua-driver` | default on |
+| `llm-local` | `tools/llamacpp-*` (cpu, cuda, hip, vulkan) | default on, split further per variant if needed |
+| `cli-tools` | `tools/gh`, `tools/bws` | default on |
+| `offline-cache` | `uv-cache` | default on until measured |
+
+"Default on" means the setup installs it unless the user opts out. Each pack is its own release asset with its own SHA-256 in the embedded manifest, so a failed or blocked download resumes at pack granularity. Whether the runtime tolerates a missing add-on pack (Hermes installs missing tools on demand through PM, which needs the network) is spike S12.
 
 ---
 
@@ -333,8 +351,9 @@ Each spike has a pass criterion. All ten are blocking for M2 onward, except wher
 | S7 | Can the runtime execute from `%LOCALAPPDATA%` on the target corporate machines (AppLocker, WDAC, EDR)? | Run the validator on two corporate Windows machines and one Linux. | Passes, or fails with an actionable path and hash. | Document per policy. Nothing is bypassed. |
 | S8 | Real size and first-run time of the bundle. | Measure the S1 build. | Within the section 6.6 budget. | Trim components. |
 | S9 | Do concurrent VS Code windows sharing one private `HERMES_HOME` corrupt state? | Two extension hosts, two sessions, same home. | No lock errors or lost sessions. | One home per window/workspace, or a single-instance broker. |
-| S11 | How do we stop Hermes from self-updating at startup, writing the user PATH, and installing default tools (`agent-browser`, `cua-driver`) from the network? Can the install be ACP-only? | Test `pm install --without`, config keys, install from tag. | Cold start offline, PATH untouched, size within budget. | Cannot ship an offline runtime; escalate. |
+| S11 | **Mostly solved by the sealed payload (S1b); PATH check pending as S11b.** How do we stop Hermes from self-updating at startup, writing the user PATH, and installing default tools (`agent-browser`, `cua-driver`) from the network? Can the install be ACP-only? | Test `pm install --without`, config keys, install from tag. | Cold start offline, PATH untouched, size within budget. | Cannot ship an offline runtime; escalate. |
 | S10 | Proxy and TLS inspection: does the extension host's download and probe honor VS Code proxy and system certificates, and does Python-side `truststore` cover the LLM call? | Test behind an intercepting proxy. | Both work. | Add explicit proxy and CA settings to the provider profile. |
+| S12 | Does the runtime work when an add-on pack is absent, and what does Hermes try to do when a tool is missing (install on demand over the network)? | Extract `core` only, run the smoke test and a tool call that needs a missing tool, offline. | Clear tool-unavailable error, no network attempt, no hang. | Make every pack required. |
 
 S0 and S1 run first. S0 failing changes the project scope, and S1 decides D3 versus D3b.
 
@@ -443,7 +462,7 @@ Real credentials (the Qwen endpoint key, PATs) are never used in CI. The Qwen in
 | 1 | Repository | `LucasRangelSSouza/hermes-vscode`, **public**. Detached copy with upstream history, `upstream` remote points to `stefanpieter/hermes-vscode`. |
 | 2 | Publisher | Personal publisher (Lucas), not an organization. The publisher ID is still to be created on the Marketplace and Open VSX, and `package.json` carries a placeholder until then. Not blocking before M7. |
 | 3 | Runtime hosting | GitHub Releases of this repository. |
-| 4 | Hermes pin | The newest release that passes S0 to S5. Current candidate: `v2026.9.24`. "Newest" is a candidate until the spikes prove it works, and a newer tag replaces it if one appears first and passes. |
+| 4 | Hermes pin | An exact canary tag and commit that passed the payload workflow. Current pin: `v0.21.4+canary.20260928T071354Z` (commit `8f2160611`). The calver releases (`v2026.9.x`) are not usable: they have no sealed-payload build lane. Bumping the pin means re-running the workflow. |
 | 5 | Git on Windows | **Bundle PortableGit** in the Windows runtime. This means shipping the GPLv2 text and a written source offer with the archive (section 9). |
 | 6 | Test hardware | Windows: the development machine (a disposable local user account for S0/S1, so the primary profile stays untouched). Linux: Docker. Docker is a clean-room check but does not cover corporate EDR/AppLocker behavior, so S7 stays open until a corporate Windows machine is available. |
 | 7 | Name | Public repository, so the "Hermes" name is used, with the "community project, not affiliated with or endorsed by Nous Research" disclaimer in the README and listing. Re-read their trademark policy before the Marketplace listing (M7). |
