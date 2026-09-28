@@ -149,6 +149,15 @@ export class RemoteSessionPublisher implements vscode.Disposable {
     private readonly log: (line: string) => void,
     /** Sends text into the local Hermes session, same path as a typed message. */
     private readonly sendLocalPrompt: (text: string) => Promise<void>,
+    /** True when nothing is running or queued locally. Checked immediately
+     * before sendLocalPrompt (see runCommand) so the `done` this module waits
+     * on can only belong to the remote instruction's own turn — without it,
+     * an already-in-flight local message finishing right after we enqueue
+     * ours resolves the wait early and the command is marked completed
+     * having never actually run (found live, 2026-09-28: a manual "como
+     * estas?" a person had just typed ate the completion signal meant for a
+     * remote "generate a signup page" command). */
+    private readonly isLocalSessionIdle: () => boolean,
   ) {
     this.session.onUpdate((event) => { void this.onLocalUpdate(event); });
   }
@@ -300,9 +309,13 @@ export class RemoteSessionPublisher implements vscode.Disposable {
     }
     this.log(`[remote] executando comando ${command.id}`);
     await this.transition(command.id, 'accepted');
-    await this.upsert('running');
-    await this.transition(command.id, 'running');
     try {
+      await this.waitForLocalSessionIdle();
+      await this.upsert('running');
+      await this.transition(command.id, 'running');
+      // Arm the completion wait and send in the same tick, right after
+      // confirming idle: nothing else in this extension host can start a
+      // local turn in the gap, so the next `done` can only be ours.
       const done = this.waitForNextTurnDone();
       await this.sendLocalPrompt(text);
       await done;
@@ -313,5 +326,25 @@ export class RemoteSessionPublisher implements vscode.Disposable {
       await this.upsert('idle');
       this.inFlightCommandIds.delete(command.id);
     }
+  }
+
+  /** Waits for the local chat panel to have nothing running and nothing
+   * queued. Polls instead of subscribing because idleness itself has no
+   * event -- only the transitions into and out of it do, and busy-polling a
+   * boolean every 300ms is simpler than tracking those. */
+  private waitForLocalSessionIdle(timeoutMs = 10 * 60 * 1000): Promise<void> {
+    if (this.isLocalSessionIdle()) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const startedAt = Date.now();
+      const check = (): void => {
+        if (this.isLocalSessionIdle()) { resolve(); return; }
+        if (Date.now() - startedAt > timeoutMs) {
+          reject(new Error('Timed out waiting for the local Hermes session to become idle.'));
+          return;
+        }
+        setTimeout(check, 300);
+      };
+      check();
+    });
   }
 }

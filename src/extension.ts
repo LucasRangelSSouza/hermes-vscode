@@ -391,6 +391,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     session,
     logLine,
     text => panel.requestRemotePrompt(text),
+    () => panel.isIdle(),
   );
   context.subscriptions.push(remotePublisher);
 

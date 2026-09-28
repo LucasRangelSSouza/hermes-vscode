@@ -326,6 +326,13 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
     await this.handleFromWebview({ type: 'send', text });
   }
 
+  /** True when no turn is running and nothing is queued behind it — the only
+   * moment a remote command can be injected without racing an unrelated
+   * local turn's completion (see RemoteSessionPublisher.runCommand). */
+  isIdle(): boolean {
+    return !this.busy && this.messageQueue.length === 0;
+  }
+
   async requestHermesRestart(): Promise<boolean> {
     await this.handleFromWebview({ type: 'restartHermes' });
     return !this.busy;

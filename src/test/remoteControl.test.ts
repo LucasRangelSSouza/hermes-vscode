@@ -153,7 +153,9 @@ test('RemoteSessionPublisher.attach without a paired credential does not call th
   const originalFetch = globalThis.fetch;
   globalThis.fetch = impl as typeof fetch;
   try {
-    const publisher = new RemoteSessionPublisher(context, manager as never, () => {}, async () => {});
+    const publisher = new RemoteSessionPublisher(
+      context, manager as never, () => {}, async () => {}, () => true,
+    );
     await publisher.attach({ externalSessionId: 'ext-1', workspacePath: '/tmp/ws' });
     assert.equal(calls.length, 0);
     publisher.dispose();
@@ -191,6 +193,7 @@ test('RemoteSessionPublisher runs a remote command end-to-end: upsert, transitio
         // Simulate the Hermes turn finishing asynchronously, like the real session would.
         setTimeout(() => emit({ session_id: 'session-1', done: true } as SessionUpdateEvent), 5);
       },
+      () => true,
     );
     await publisher.attach({ externalSessionId: 'ext-1', workspacePath: '/tmp/ws' });
     await (publisher as unknown as { pollOnce(): Promise<void> }).pollOnce();
@@ -200,6 +203,69 @@ test('RemoteSessionPublisher runs a remote command end-to-end: upsert, transitio
     assert.deepEqual(prompts, ['gere uma tela de cadastro']);
     const transitionCalls = calls.filter(c => c.url.includes('/commands/cmd-1/transition'));
     const statuses = transitionCalls.map(c => JSON.parse(c.init.body as string).status);
+    assert.deepEqual(statuses, ['accepted', 'running', 'completed']);
+    publisher.dispose();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('RemoteSessionPublisher waits for the local session to go idle so an unrelated in-flight local turn cannot be mistaken for the remote command finishing', async () => {
+  // Regression for a real live bug (2026-09-28): a person had just typed a
+  // message locally; a remote command arrived while that turn was still
+  // running, got queued behind it, and the *local* turn's `done` resolved
+  // the remote command as completed before the remote instruction had even
+  // been sent. The fix waits for the local session to be genuinely idle
+  // before arming the completion signal.
+  const context = fakeContext();
+  await context.secrets.store('hermesRangelTech/remote/deviceCredential', 'cred');
+  const { manager, emit } = fakeSession();
+  const prompts: string[] = [];
+  let idle = false; // a local turn is already running when the command arrives
+
+  const responses: Array<{ ok: boolean; json: unknown }> = Array.from(
+    { length: 20 },
+    () => ({ ok: true, json: { id: 'session-1' } }),
+  );
+  responses[1] = { ok: true, json: [{ id: 'cmd-1', session_id: 'session-1', payload: { text: 'gere uma tela de cadastro' } }] };
+  const { impl, calls } = fakeFetch(responses);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = impl as typeof fetch;
+  try {
+    const publisher = new RemoteSessionPublisher(
+      context,
+      manager as never,
+      () => {},
+      async text => { prompts.push(text); },
+      () => idle,
+    );
+    await publisher.attach({ externalSessionId: 'ext-1', workspacePath: '/tmp/ws' });
+    await (publisher as unknown as { pollOnce(): Promise<void> }).pollOnce();
+
+    // The stray local turn finishes while the remote command is still
+    // waiting for idle. With the fix this must be a no-op for the command.
+    emit({ session_id: 'session-1', done: true } as SessionUpdateEvent);
+    await new Promise(resolve => setTimeout(resolve, 30));
+    assert.deepEqual(prompts, [], 'the remote instruction must not have been sent yet');
+    let statuses = calls
+      .filter(c => c.url.includes('/commands/cmd-1/transition'))
+      .map(c => JSON.parse(c.init.body as string).status);
+    assert.deepEqual(statuses, ['accepted'], 'must not be completed by the stray done');
+
+    // Now the local session actually becomes free.
+    idle = true;
+    // Give the 300ms idle-poll time to notice and send the real instruction.
+    for (let i = 0; i < 20 && prompts.length === 0; i++) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    assert.deepEqual(prompts, ['gere uma tela de cadastro'], 'the remote instruction runs once idle');
+
+    // Only now does the matching done arrive, completing the command.
+    emit({ session_id: 'session-1', done: true } as SessionUpdateEvent);
+    await new Promise(resolve => setTimeout(resolve, 30));
+    statuses = calls
+      .filter(c => c.url.includes('/commands/cmd-1/transition'))
+      .map(c => JSON.parse(c.init.body as string).status);
     assert.deepEqual(statuses, ['accepted', 'running', 'completed']);
     publisher.dispose();
   } finally {
@@ -222,7 +288,7 @@ test('RemoteSessionPublisher rejects a command with no instruction text without 
   globalThis.fetch = impl as typeof fetch;
   try {
     const publisher = new RemoteSessionPublisher(
-      context, manager as never, () => {}, async text => { prompts.push(text); },
+      context, manager as never, () => {}, async text => { prompts.push(text); }, () => true,
     );
     await publisher.attach({ externalSessionId: 'ext-1', workspacePath: '/tmp/ws' });
     await (publisher as unknown as { pollOnce(): Promise<void> }).pollOnce();
