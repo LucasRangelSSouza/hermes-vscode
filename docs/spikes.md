@@ -25,8 +25,8 @@ The tree was moved from `...\hermes-spike\home` to `...\hermes-spike\mov ção t
 
 Consequences for the design:
 
-- Decision D3 (ship a built tree and just move it) is dead. Use **D3b**: ship the pinned inputs and produce the tree at its final path on the client, offline. A rewrite step is fragile because `state.db` and PM state are in the list.
-- New blocking question, **S11**: how to stop Hermes from self-updating and from writing the user PATH at startup. Candidates to test: `hermes pm install --without agent-browser --without cua-driver` (recorded in `declined-packages.json`), an update-check setting in `config.yaml`, and installing from the release tag instead of `main`.
+- An installer-built tree cannot be shipped and moved. A text rewrite is fragile because `state.db` and PM state are in the list. This finding led to the S1b test below, which found a workable route: Hermes's own sealed-payload build lane.
+- The source of the self-update is `hermes_cli/venv_sync.py`: it only runs when the install stamp says `updateMechanism: self`. Sealed and `external` installs skip it and do not publish launchers or touch the PATH. This is what S1b relies on.
 
 ## S8 in detail: size of the installed tree
 
