@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   payload:
-    name: Payload (${{ matrix.os }})
+    name: Payload (${{ matrix.os }}, ${{ matrix.mode }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
@@ -25,6 +25,9 @@ jobs:
         os:
           - windows-latest
           - ubuntu-latest
+        mode:
+          - full
+          - core
     defaults:
       run:
         shell: bash
@@ -63,12 +66,21 @@ jobs:
           echo "describe: $(git describe --tags --always)"
           git status --short | head -5
 
-      - name: Build the sealed payload (official stage driver)
+      - name: Prepare Node workspace in the checkout (full mode)
+        if: matrix.mode == 'full'
+        working-directory: hermes-agent
+        run: node scripts/build/node-deps.mjs --source "$PWD" --workspace ui-tui --workspace web
+
+      - name: Build the sealed payload
         working-directory: hermes-agent
         run: |
           mkdir -p ../out
           start=$(date +%s)
-          python -m scripts.bundles.stage --out "$PAYLOAD" --ref HEAD
+          if [ "${{ matrix.mode }}" = "full" ]; then
+            python -m scripts.bundles.stage --out "$PAYLOAD" --ref HEAD
+          else
+            python -S -B scripts/bundles/native_build.py --source "$PWD"               --work "${{ github.workspace }}/out/work" --cache "${{ github.workspace }}/out/cache"               --out "$PAYLOAD" --ref HEAD
+          fi
           echo "build seconds: $(( $(date +%s) - start ))"
 
       - name: Inspect payload
