@@ -236,7 +236,7 @@ test('extraction cannot write outside the runtime folder', async () => {
 });
 
 /** A tar written by hand so it can hold a symlink even where the test user may not create one. */
-function tarWithAbsoluteSymlink(): Buffer {
+function tarWithSymlinks(): Buffer {
   const header = (fields: ConstructorParameters<typeof tar.Header>[0]): Buffer => {
     const block = Buffer.alloc(512);
     new tar.Header(fields).encode(block, 0);
@@ -246,22 +246,53 @@ function tarWithAbsoluteSymlink(): Buffer {
   const padded = Buffer.concat([content, Buffer.alloc(512 - content.length)]);
   const blocks = [
     header({ path: 'etc/mtab', type: 'SymbolicLink', linkpath: '/proc/mounts', mode: 0o777, size: 0, mtime: new Date(0) }),
-    header({ path: 'bin/hermes', type: 'File', mode: 0o755, size: content.length, mtime: new Date(0) }),
+    header({ path: 'venv/bin/hermes', type: 'File', mode: 0o755, size: content.length, mtime: new Date(0) }),
     padded,
+    // A relative, package-internal link, the same shape as a venv's bin/python -> python3.x.
+    header({ path: 'bin/hermes', type: 'SymbolicLink', linkpath: '../venv/bin/hermes', mode: 0o777, size: 0, mtime: new Date(0) }),
     Buffer.alloc(1024),
   ];
   return zlib.gzipSync(Buffer.concat(blocks));
 }
 
-test('symlinks are skipped on every platform, so neither a Windows privilege nor a Linux path-traversal guard can abort the install', async () => {
+test('a link escaping the package is skipped everywhere; a package-internal link is created where the platform allows it', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hrt-sym-'));
   try {
     const archive = path.join(dir, 'pack.tar.gz');
-    fs.writeFileSync(archive, tarWithAbsoluteSymlink());
+    fs.writeFileSync(archive, tarWithSymlinks());
     const dest = path.join(dir, 'out');
     const skipped = await extractPack(archive, dest);
-    assert.deepEqual(skipped, ['etc/mtab']);
-    assert.equal(fs.readFileSync(path.join(dest, 'bin', 'hermes'), 'utf8'), 'hello');
+    assert.ok(skipped.includes('etc/mtab'), 'a link to /proc/mounts must never be created');
     assert.ok(!fs.existsSync(path.join(dest, 'etc', 'mtab')));
+    assert.equal(fs.readFileSync(path.join(dest, 'venv', 'bin', 'hermes'), 'utf8'), 'hello', 'the real file always extracts');
+    if (skipped.includes('bin/hermes')) {
+      // Windows without Developer Mode: the link could not be created, matching the proven all-skipped case.
+      assert.ok(!fs.existsSync(path.join(dest, 'bin', 'hermes')));
+    } else {
+      // Linux and Windows with Developer Mode: the launcher's own symlink is real and resolves.
+      assert.equal(fs.lstatSync(path.join(dest, 'bin', 'hermes')).isSymbolicLink(), true);
+      assert.equal(fs.readFileSync(path.join(dest, 'bin', 'hermes'), 'utf8'), 'hello');
+    }
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('does not treat writing through a package-internal symlink as an error (the real node-tar bug this fixes)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hrt-thru-'));
+  try {
+    const src = fs.mkdtempSync(path.join(dir, 'src-'));
+    fs.mkdirSync(path.join(src, 'lib'));
+    fs.writeFileSync(path.join(src, 'lib', 'a.txt'), 'a');
+    fs.symlinkSync('lib', path.join(src, 'lib64'), 'junction');
+    fs.writeFileSync(path.join(src, 'lib64', 'b.txt'), 'b'); // physically lands in lib/, same as tar would encode it
+    const archive = path.join(dir, 'pack.tar.gz');
+    try {
+      await tar.c({ gzip: true, file: archive, cwd: src, follow: false }, ['lib', 'lib64', 'lib64/b.txt']);
+    } catch (err) {
+      // Some platforms cannot create this symlink either; the scenario just does not apply there.
+      return;
+    }
+    const dest = path.join(dir, 'out');
+    await extractPack(archive, dest); // must not throw TAR_SYMLINK_ERROR
+    assert.equal(fs.readFileSync(path.join(dest, 'lib', 'a.txt'), 'utf8'), 'a');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

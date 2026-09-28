@@ -225,18 +225,35 @@ async function ensureFreeSpace(dir: string, needed: number): Promise<void> {
   }
 }
 
+interface LinkEntry { path: string; linkpath: string }
+
+/** True when a symlink's target stays inside the extracted package (relative and not `..`-escaping, or an absolute path under `dest`). */
+function targetInsidePackage(dest: string, linkFile: string, linkpath: string): boolean {
+  const resolved = path.isAbsolute(linkpath) ? linkpath : path.resolve(path.dirname(linkFile), linkpath);
+  const rel = path.relative(dest, resolved);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
 /**
- * Extracts one pack. Symbolic links are skipped everywhere, not only on Windows (where creating
- * them needs Developer Mode or elevation): a Linux runtime build was found to include a symlink
- * whose path is later written through by another entry, which node-tar refuses as a path-traversal
- * guard (`TAR_SYMLINK_ERROR`) and which aborts the whole extraction. The runtime does not depend on
- * these links; the loader/launcher scripts record real, resolved paths (confirmed in docs/spikes.md,
- * S1 and S1b — the same skip already passed a full ACP round trip and a terminal tool call on
- * Windows). Informational warnings are ignored; anything else is an error.
+ * Extracts one pack. Real files and directories are written first; symbolic links are created in a
+ * second pass, from a plain listing, rather than let tar create them mid-stream.
+ *
+ * This matters on two counts, found in manual verification, 2026-09-28:
+ *  - A Linux runtime build has a symlink (the venv's `bin/python*`) that a later archive entry
+ *    writes through. node-tar refuses that during a normal extraction as a path-traversal guard
+ *    (`TAR_SYMLINK_ERROR`) and aborts the whole pack. Creating the link afterwards, once the real
+ *    files already exist, avoids the guard entirely — nothing is ever written "through" a link.
+ *  - A link whose target resolves outside the package (Windows PortableGit's `etc/mtab` -> the
+ *    POSIX-only `/proc/mounts`) is never followed anywhere useful and is skipped, on every platform.
+ *  - On Windows, creating a symlink needs Developer Mode or elevation. Where that fails the link is
+ *    skipped; the runtime does not depend on it (a full ACP round trip and a terminal tool call
+ *    already passed with every link skipped there — see docs/spikes.md, S1 and S1b).
+ *
+ * Informational tar warnings are ignored; anything else is an error.
  */
 export async function extractPack(archive: string, dest: string): Promise<string[]> {
   fs.mkdirSync(dest, { recursive: true });
-  const skipped: string[] = [];
+  const links: LinkEntry[] = [];
   const problems: string[] = [];
   await tar.x({
     file: archive,
@@ -244,7 +261,7 @@ export async function extractPack(archive: string, dest: string): Promise<string
     preserveOwner: false,
     filter: (entryPath, entry) => {
       if ((entry as { type?: string }).type === 'SymbolicLink') {
-        skipped.push(entryPath);
+        links.push({ path: entryPath, linkpath: (entry as unknown as { linkpath: string }).linkpath });
         return false;
       }
       return true;
@@ -255,6 +272,18 @@ export async function extractPack(archive: string, dest: string): Promise<string
   });
   if (problems.length > 0) {
     throw new Error(`Extracting ${path.basename(archive)} failed: ${problems.slice(0, 3).join('; ')}`);
+  }
+
+  const skipped: string[] = [];
+  for (const link of links) {
+    const full = path.join(dest, link.path);
+    if (!targetInsidePackage(dest, full, link.linkpath)) { skipped.push(link.path); continue; }
+    try {
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.symlinkSync(link.linkpath, full);
+    } catch {
+      skipped.push(link.path); // most commonly EPERM on Windows without Developer Mode
+    }
   }
   return skipped;
 }
