@@ -35,6 +35,57 @@ Status on 2026-09-28. Milestones refer to section 8.
 
 Where the implementation differs from the design above:
 
+### 1.2 Live verification, Windows and Linux (2026-09-28)
+
+Beyond the CI pipeline (docs/spikes.md, S1b), the full chain was run by hand end to end on both
+target platforms: manifest -> download -> SHA-256 verify -> extract -> validate (`--version`,
+`--check`) -> write provider config through the real Hermes CLI -> real `AcpClient` -> ACP
+`initialize`/`session/new`/`session/prompt` -> streamed reply -> terminal tool call -> API key
+delivered from the environment only. Script: `scripts/e2e-real-runtime.mjs`.
+
+- **Windows** (this development machine): full chain passed. Found and fixed two real defects
+  along the way (see below); both are covered by unit tests and by this script.
+- **Linux** (an isolated Docker container, official `node:20-bookworm-slim` image, its own
+  `node_modules` volume so it never touches host files): full chain passed after the same two
+  fixes. The terminal tool did not produce a shell-snapshot file there at all, so the platforms
+  differ in exposure but not in behavior once purged.
+
+**Defects found by this manual run, not by any unit test:**
+
+1. **Security: the terminal tool leaks the provider API key to disk.** Hermes's terminal tool keeps
+   a warm-shell snapshot at `<HERMES_HOME>/cache/terminal/hermes-snap-*.sh`, written with
+   `declare -x` for the *entire* process environment, including whatever key variable this
+   extension injected. Confirmed on Windows; not reproduced on Linux under the same session
+   (different terminal backend behavior). Fixed in `src/runtime/terminalSnapshots.ts`: the
+   extension purges that folder before every managed launch and again on `deactivate`, so a key is
+   on disk only while a shell is actually warm, never across restarts or profile switches. There is
+   no known Hermes setting to disable the snapshot outright.
+2. **Correctness: Linux extraction failed on a symlink node-tar refuses to write through.** The
+   Linux runtime's venv interpreter link (`bin/python*` or similar) triggered node-tar's
+   path-traversal guard (`TAR_SYMLINK_ERROR`) during a normal extraction, aborting the whole pack
+   with no useful message. The first fix attempt (skip every symlink, as already proven safe on
+   Windows) broke the Linux launcher (`Bundled interpreter missing`). The real fix, in
+   `extractPack` (`src/runtime/installer.ts`): extract real files and directories first, then
+   create every symlink afterward from a plain listing — nothing is ever written *through* a link
+   mid-stream, so the guard never fires. A link whose target resolves outside the package is still
+   never created, on any platform; on Windows, where creating a link needs Developer Mode or
+   elevation, creation still falls back to skipping, unchanged from the proven all-skipped case.
+
+**Performance finding, real Qwen endpoint (`https://qwen.rangeltech.net/v1`, model
+`qwen-abliterated`):** driving a coding task (read 3 project files + a skill file, then write an
+HTML page) through the managed runtime, one model turn ran **910.6 seconds** and produced 19,240
+output tokens **entirely as reasoning**, never emitting a tool call or a final message; the task
+was cancelled at a 20-minute budget with no file written. This matches a limitation the `qwen`
+skill's own notes already flag for this serving stack (vLLM's `qwen3_xml` tool-call parser
+combined with a reasoning parser can leak tool-call content into the reasoning stream instead of
+returning `tool_calls`). ACP mechanics (`initialize`, streaming, the terminal tool, permission
+handling) all worked correctly against the same model earlier in the session and against a mock
+endpoint in this same run — this is a serving-configuration property of that specific endpoint, not
+a defect in the ACP integration. See `docs/dev-metrics.md` for the full timing table and the
+development-time breakdown for this session.
+
+
+
 - **Setup UI is native VS Code UI** (quick picks, input boxes, progress notifications, modal dialogs), not a webview wizard. It reaches every step and is much smaller to keep correct. A webview wizard can replace it later without touching the services.
 - **Custom headers are not supported.** The verified Hermes configuration for a custom endpoint (`model.provider/base_url/default/api_key`) has no header field. Adding it needs a Hermes-side option first.
 - **Skills change detection uses the commit SHA**, one small request, instead of an ETag on the tarball. The tarball is downloaded only when the SHA changed.
