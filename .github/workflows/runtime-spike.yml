@@ -35,10 +35,10 @@ jobs:
       PAYLOAD: ${{ github.workspace }}/out/payload
     steps:
       - name: Check out this repository (spike scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check out Hermes at the requested ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: NousResearch/hermes-agent
           ref: ${{ inputs.hermes_ref }}
