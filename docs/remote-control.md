@@ -1,6 +1,6 @@
 # Remote control (RIA Atendimento "Hermes agente")
 
-**Status:** IN PROGRESS. Extension side (pairing, session publishing, remote command execution) is built and unit-tested. Backend domain (Fase A of `SPEC_HERMES_INTEGRADO_RIA_ATENDIMENTO.md`) is built and tested against a real Postgres. The RIA frontend "Hermes agente" view and the live end-to-end acceptance test (real login, real chat, real remote command generating a styled signup page via the self-hosted Qwen endpoint) are what remain.
+**Status:** DONE. Verified live end-to-end on 2026-09-28: real login via `hermesRangelTech.remoteLogin`, the device and its session showed up in the RIA backend with the computer's real name (`MINDLAB-001110`), a remote command was issued and the extension generated a real, styled `hermes-teste-cadastro.html` (signup form, HTML+CSS) through the self-hosted Qwen endpoint, powered on only for that run and powered off immediately after.
 
 ## What this is
 
@@ -40,8 +40,14 @@ One Hermes session per VS Code workspace is published remotely. Its `externalSes
 
 `ChatPanelProvider.requestRemotePrompt` calls into the same queue/dispatch path as a typed message. If the panel is busy, that call resolves as soon as the message is **queued**, not when the Hermes turn actually **finishes**. `RemoteSessionPublisher.waitForNextTurnDone()` instead races the real `done` event that already flows through `onLocalUpdate` (the same broadcast `SessionManager.onUpdate` stream `ChatPanelProvider` consumes), with a 15-minute safety timeout. Only when that resolves does the command transition to `completed`.
 
+## A real bug the live test found: don't complete on someone else's `done`
+
+During the actual acceptance run, a message typed locally (`"como estás?"`) was still in flight when the remote command arrived. It queued behind that local turn — but the publisher armed its completion wait immediately, so the *local* turn's own `done` resolved the remote command as `completed` before the remote instruction had even been sent. The command's `result` said `ok: true`; no file existed.
+
+Fix: `ChatPanelProvider.isIdle()` exposes whether anything is running or queued. `RemoteSessionPublisher.runCommand` now calls `waitForLocalSessionIdle()` and only arms `waitForNextTurnDone()` (and sends) once idle is confirmed — nothing else in the extension host can start a local turn in that gap, so the next `done` can only belong to the remote instruction. Re-run immediately after the fix, on the same live session, produced the real file.
+
 ## Testing
 
-- `src/test/remoteControl.test.ts` — unit tests (VS Code module stubbed, `fetch` faked): pairing success/failure, `pairedDevice` requiring both a device record and a credential, `unpairDevice` best-effort revoke, a full remote-command run (`pollOnce` → `accepted` → `running` → local prompt → `done` → `completed`), and rejection of a command with no instruction text.
+- `src/test/remoteControl.test.ts` — unit tests (VS Code module stubbed, `fetch` faked): pairing success/failure, `pairedDevice` requiring both a device record and a credential, `unpairDevice` best-effort revoke, a full remote-command run (`pollOnce` → `accepted` → `running` → local prompt → `done` → `completed`), rejection of a command with no instruction text, and a regression test reproducing the idle race above.
 - Backend Fase A tests (`agent-platform/backend/tests/test_hermes_*.py`) cover the domain this module talks to: pairing/session/command/approval/audit APIs, RBAC, idempotency, tenant isolation.
-- Not yet done: a live end-to-end run against a real running backend + real VS Code extension + the self-hosted Qwen endpoint, generating a styled HTML/CSS signup page from a remote command (the spec's acceptance test).
+- Live end-to-end, 2026-09-28: real login, real device+session showing up with the real computer name, a real remote command, real Qwen inference, a real generated file on disk. Qwen VM powered on only for this run, powered off right after.
