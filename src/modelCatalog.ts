@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { activeHermesHome } from './paths/hermesHome';
 
 export interface ModelMenuItem {
   id: string;
@@ -71,7 +72,7 @@ const FALLBACK_LABELS: Record<string, string> = {
 };
 
 function readCache(): HermesModelCache | null {
-  const cachePath = path.join(os.homedir(), '.hermes', 'models_dev_cache.json');
+  const cachePath = path.join(activeHermesHome(), 'models_dev_cache.json');
   try {
     const raw = fs.readFileSync(cachePath, 'utf8');
     return JSON.parse(raw) as HermesModelCache;

@@ -52,7 +52,7 @@ export interface ProfileController {
 }
 
 export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Disposable {
-  public static readonly viewId = 'hermes.chatView';
+  public static readonly viewId = 'hermesRangelTech.chatView';
 
   private view?: vscode.WebviewView;
   private busy = false;

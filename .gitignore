@@ -3,3 +3,6 @@ dist/
 *.vsix
 archive/
 old/
+
+.vscode-test/
+out-test/

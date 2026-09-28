@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import type { ChatSession, StoredMessage } from './types';
 
-const SESSIONS_KEY = 'hermes.sessions';
+const SESSIONS_KEY = 'hermesRangelTech.sessions';
 const MAX_SESSIONS = 20;
 const MAX_MESSAGES_PER_SESSION = 300;
 

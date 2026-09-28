@@ -16,6 +16,10 @@ on:
         description: Runtime id used in the release tag and file names (short, no spaces)
         required: true
         default: 'hrt-20260928'
+      only_platform:
+        description: Build one platform only (all, win32-x64 or linux-x64). Re-running an id replaces its assets.
+        required: false
+        default: all
 
 permissions:
   contents: write
@@ -42,6 +46,7 @@ jobs:
   build:
     name: Build (${{ matrix.platform }})
     needs: prepare
+    if: inputs.only_platform == 'all' || inputs.only_platform == '' || inputs.only_platform == matrix.platform
     runs-on: ${{ matrix.os }}
     timeout-minutes: 150
     strategy:
@@ -143,12 +148,12 @@ jobs:
             for g in ${PACK_GLOBS[$name]}; do for m in $g; do [ -e "$m" ] && members+=("$m"); done; done
             [ ${#members[@]} -eq 0 ] && { echo "pack $name: no members on this platform, skipped"; continue; }
             f="hermes-runtime-$PLATFORM-$name-$RID.tar.gz"
-            tar -czf "$PACKS/$f" "${members[@]}"
+            tar --force-local -czf "$PACKS/$f" "${members[@]}"
             for m in "${members[@]}"; do excludes+=(--exclude="./$m"); done
             echo "pack $name: ${#members[@]} members -> $f"
           done
           f="hermes-runtime-$PLATFORM-core-$RID.tar.gz"
-          tar -czf "$PACKS/$f" "${excludes[@]}" .
+          tar --force-local -czf "$PACKS/$f" "${excludes[@]}" .
           ls -l "$PACKS" | awk '{printf "%10.1f MB  %s\n", $5/1048576, $9}'
           # every asset must stay under 1.9 GiB
           for f in "$PACKS"/*.tar.gz; do
@@ -194,7 +199,7 @@ jobs:
         run: |
           dest="${{ github.workspace }}/out/mov ção teste/rt"
           mkdir -p "$dest"
-          for f in "$PACKS"/*.tar.gz; do tar -xzf "$f" -C "$dest"; done
+          for f in "$PACKS"/*.tar.gz; do tar --force-local -xzf "$f" -C "$dest"; done
           rm -rf "$PAYLOAD"
           export HERMES_HOME="${{ github.workspace }}/out/user home"; mkdir -p "$HERMES_HOME"
           ACP="$dest/bin/hermes-acp$EXE"; HERMES="$dest/bin/hermes$EXE"

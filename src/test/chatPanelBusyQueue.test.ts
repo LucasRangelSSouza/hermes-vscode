@@ -135,7 +135,7 @@ test('Stop during first-session binding cancels that turn before queued work sta
       ['Run after cancellation'],
       'Stop during binding must cancel the owned turn instead of being reset before session/prompt',
     );
-    const storedSessions = state.get('hermes.sessions') as Array<{ acpSessionId?: string }>;
+    const storedSessions = state.get('hermesRangelTech.sessions') as Array<{ acpSessionId?: string }>;
     assert.equal(storedSessions[0].acpSessionId, 'binding-session');
   } finally {
     rmSync(storageRoot, { recursive: true, force: true });
@@ -196,7 +196,7 @@ test('Stop during stored-session loading cancels that turn before queued work st
       false,
       'binding-only Stop must not cancel a session that has no active session/prompt',
     );
-    const storedSessions = state.get('hermes.sessions') as Array<{ acpSessionId?: string }>;
+    const storedSessions = state.get('hermesRangelTech.sessions') as Array<{ acpSessionId?: string }>;
     assert.equal(storedSessions[0].acpSessionId, 'stored-session');
   } finally {
     rmSync(storageRoot, { recursive: true, force: true });
@@ -500,7 +500,7 @@ test('queues a follow-up submitted while busy without cancelling the active prom
       'a recreated webview must inherit the live host queue state',
     );
     assert.deepEqual(
-      (state.get('hermes.sessions') as Array<{ messages: Array<{ role: string; text: string }> }>)[0].messages,
+      (state.get('hermesRangelTech.sessions') as Array<{ messages: Array<{ role: string; text: string }> }>)[0].messages,
       [{ role: 'user', text: 'Start the long task' }],
       'queued input must not be persisted ahead of the active turn response',
     );
@@ -551,7 +551,7 @@ test('queues a follow-up submitted while busy without cancelling the active prom
     assert.match(prompts[1], /\[Active file: \/workspace\/first\.ts\]/);
     assert.doesNotMatch(prompts[1], /second-skill|second\.md|second\.ts/);
     assert.deepEqual(
-      (state.get('hermes.sessions') as Array<{ messages: Array<{ role: string; text: string }> }>)[0].messages,
+      (state.get('hermesRangelTech.sessions') as Array<{ messages: Array<{ role: string; text: string }> }>)[0].messages,
       [
         { role: 'user', text: 'Start the long task' },
         { role: 'agent', text: 'First answer' },
@@ -890,7 +890,7 @@ test('keeps the composer busy and persists one continuous autonomous Lead turn',
 test('persists an inactive session autonomous Lead response without seizing the visible composer', () => {
   const storageRoot = mkdtempSync(join(tmpdir(), 'hermes-vscode-inactive-autonomous-turn-'));
   const state = new Map<string, unknown>();
-  state.set('hermes.sessions', [
+  state.set('hermesRangelTech.sessions', [
     {
       id: 'old-chat', title: 'Old Lead chat', createdAt: 1, messages: [],
       acpSessionId: 'old-acp-session',

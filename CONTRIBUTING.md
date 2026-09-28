@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping maintain the Hermes VS Code client.
+Thank you for helping with Hermes by Rangel Tech.
 
 ## Set up
 
@@ -12,7 +12,7 @@ Requirements:
 - Hermes Agent for live ACP testing when a change affects runtime integration
 
 ```bash
-git clone https://github.com/stefanpieter/hermes-vscode.git
+git clone https://github.com/LucasRangelSSouza/hermes-vscode.git
 cd hermes-vscode
 npm ci
 npm run verify
@@ -51,7 +51,11 @@ High-risk areas include process replacement, permission responses, session switc
 
 ## Distribution identity
 
-The Marketplace handover is unresolved. Do not publish a package using publisher `joaompfp`, change the extension identity, or create a new public listing without a recorded maintainer decision and tested migration plan.
+Releases are published from this repository. Do not change the extension identity (`publisher`, `name`) or publish a listing under another identity without a recorded maintainer decision.
+
+## Runtime changes
+
+The runtime is built by `.github/workflows/runtime-release.yml` and pinned by the manifest in `runtime-manifest/`. Changing the pinned Hermes version means re-running that workflow and committing the new manifest. See `docs/releasing.md`.
 
 ## Security reports
 

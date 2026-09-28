@@ -15,6 +15,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { buildHermesAcpArgs, normalizeHermesProfile } from './acpLaunchArgs';
+import { killProcessTree } from './runtime/process';
 
 export type IncomingRequestHandler = (
   method: string,
@@ -42,7 +43,8 @@ export class AcpClient extends EventEmitter {
 
   constructor(
     private hermesPath: string,
-    private readonly envOverrides: NodeJS.ProcessEnv = {},
+    /** Overrides merged into process.env, or a function returning the complete child environment. */
+    private readonly envOverrides: NodeJS.ProcessEnv | (() => NodeJS.ProcessEnv) = {},
     private readonly debugLogging = false,
     profile = '',
   ) {
@@ -53,6 +55,20 @@ export class AcpClient extends EventEmitter {
   setHermesPath(nextPath: string): void {
     if (this.proc) return;
     this.hermesPath = nextPath;
+  }
+
+  /** Fixed launch arguments from a managed runtime. Null keeps the default `[--profile p] acp`. */
+  private launchArgs: string[] | null = null;
+
+  setLaunchArgs(args: string[] | null): void {
+    if (this.proc) return;
+    this.launchArgs = args;
+  }
+
+  private terminate(proc: ChildProcess): void {
+    // On Windows a plain kill ends only the interpreter; the shell and tool processes it started would survive.
+    if (process.platform === 'win32') killProcessTree(proc.pid);
+    proc.kill();
   }
 
   setProfile(nextProfile: string): void {
@@ -94,12 +110,12 @@ export class AcpClient extends EventEmitter {
   }
 
   private async startProcess(): Promise<void> {
-    const args = buildHermesAcpArgs(this.profile);
+    const args = this.launchArgs ?? buildHermesAcpArgs(this.profile);
     this.activeProfile = this.profile;
     this.emit('log', `[acp] spawn ${this.hermesPath} ${args.join(' ')}`);
     const proc = spawn(this.hermesPath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ...this.envOverrides },
+      env: typeof this.envOverrides === 'function' ? this.envOverrides() : { ...process.env, ...this.envOverrides },
     });
     this.proc = proc;
 
@@ -141,7 +157,7 @@ export class AcpClient extends EventEmitter {
         this.startPromise = null;
         this.buffer = '';
         this.rejectPending(err instanceof Error ? err : new Error(String(err)));
-        proc.kill();
+        this.terminate(proc);
         this.emit('exit', -1);
       }
       throw err;
@@ -155,7 +171,7 @@ export class AcpClient extends EventEmitter {
     this.startPromise = null;
     this.buffer = '';
     this.rejectPending(new Error('hermes acp stopped'));
-    proc.kill();
+    this.terminate(proc);
   }
 
   async call(method: string, params: unknown): Promise<unknown> {

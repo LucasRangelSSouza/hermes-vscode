@@ -1,14 +1,19 @@
 {
-  "name": "hermes-ai-agent-maintained",
-  "displayName": "Hermes AI Agent (Maintained)",
-  "description": "Maintained VS Code sidebar for Hermes Agent. Streams chat, runs tools, manages sessions, and communicates over ACP.",
-  "version": "3.6.0",
-  "publisher": "stefanpieter",
+  "name": "hermes-by-rangel-tech",
+  "displayName": "Hermes by Rangel Tech",
+  "description": "A community VS Code integration for Hermes Agent with a managed portable runtime, provider setup and synchronized skills. Not affiliated with Nous Research.",
+  "version": "0.1.0",
+  "publisher": "lucasrangel",
   "author": {
-    "name": "Joao Peixoto",
-    "url": "https://github.com/joaompfp"
+    "name": "Rangel Tech",
+    "email": "comercial@rangeltech.net",
+    "url": "https://github.com/LucasRangelSSouza/hermes-vscode"
   },
   "contributors": [
+    {
+      "name": "Joao Peixoto",
+      "url": "https://github.com/joaompfp"
+    },
     {
       "name": "Stefan van Biljon",
       "url": "https://github.com/stefanpieter"
@@ -30,16 +35,16 @@
     "acp",
     "agent client protocol",
     "sidebar chat",
-    "streaming",
-    "remote ssh"
+    "streaming"
   ],
-  "homepage": "https://github.com/stefanpieter/hermes-vscode",
+  "homepage": "https://github.com/LucasRangelSSouza/hermes-vscode",
   "bugs": {
-    "url": "https://github.com/stefanpieter/hermes-vscode/issues"
+    "url": "https://github.com/LucasRangelSSouza/hermes-vscode/issues",
+    "email": "comercial@rangeltech.net"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/stefanpieter/hermes-vscode"
+    "url": "https://github.com/LucasRangelSSouza/hermes-vscode"
   },
   "icon": "resources/hermes-logo-128.png",
   "galleryBanner": {
@@ -66,64 +71,133 @@
       "description": "Hermes launches an autonomous local agent with access to the current workspace."
     }
   },
-  "qna": "https://github.com/stefanpieter/hermes-vscode/issues",
+  "qna": "https://github.com/LucasRangelSSouza/hermes-vscode/issues",
   "contributes": {
     "commands": [
       {
-        "command": "hermes.openChat",
+        "command": "hermesRangelTech.openChat",
         "title": "Hermes: Open Chat"
       },
       {
-        "command": "hermes.newSession",
+        "command": "hermesRangelTech.newSession",
         "title": "Hermes: New Session"
       },
       {
-        "command": "hermes.selectProfile",
+        "command": "hermesRangelTech.setup",
+        "title": "Hermes: Setup (Runtime and Provider)"
+      },
+      {
+        "command": "hermesRangelTech.configureProvider",
+        "title": "Hermes: Configure Provider"
+      },
+      {
+        "command": "hermesRangelTech.testConnection",
+        "title": "Hermes: Test Provider Connection"
+      },
+      {
+        "command": "hermesRangelTech.installRuntime",
+        "title": "Hermes: Install or Repair Runtime"
+      },
+      {
+        "command": "hermesRangelTech.selectPortableRuntime",
+        "title": "Hermes: Select Portable Runtime Folder"
+      },
+      {
+        "command": "hermesRangelTech.runtimeStatus",
+        "title": "Hermes: Show Runtime Status"
+      },
+      {
+        "command": "hermesRangelTech.selectProfile",
         "title": "Hermes: Select Profile"
       },
       {
-        "command": "hermes.selectEditApprovalMode",
+        "command": "hermesRangelTech.selectEditApprovalMode",
         "title": "Hermes: Select Edit Approval Mode"
       },
       {
-        "command": "hermes.restartAgent",
+        "command": "hermesRangelTech.restartAgent",
         "title": "Hermes: Restart Agent"
+      },
+      {
+        "command": "hermesRangelTech.showLogs",
+        "title": "Hermes: Show Logs"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "hermes",
-          "title": "Hermes Agent",
+          "id": "hermesRangelTech",
+          "title": "Hermes",
           "icon": "resources/hermes-icon.svg"
         }
       ]
     },
     "views": {
-      "hermes": [
+      "hermesRangelTech": [
         {
           "type": "webview",
-          "id": "hermes.chatView",
+          "id": "hermesRangelTech.chatView",
           "name": "Chat"
         }
       ]
     },
     "configuration": {
-      "title": "Hermes",
+      "title": "Hermes by Rangel Tech",
       "properties": {
-        "hermes.path": {
+        "hermesRangelTech.runtime.mode": {
+          "type": "string",
+          "enum": [
+            "automatic",
+            "portable",
+            "existing"
+          ],
+          "enumDescriptions": [
+            "Download and manage the Hermes runtime automatically (recommended).",
+            "Use a runtime folder you copied to this machine (for networks that block the download).",
+            "Use a Hermes binary you already installed."
+          ],
+          "default": "automatic",
+          "scope": "machine-overridable",
+          "description": "How the extension finds Hermes."
+        },
+        "hermesRangelTech.runtime.portablePath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Absolute path to a portable runtime folder (portable mode). Change it with Hermes: Select Portable Runtime Folder."
+        },
+        "hermesRangelTech.runtime.existingPath": {
           "type": "string",
           "default": "hermes",
           "scope": "machine-overridable",
-          "description": "Trusted absolute path to the Hermes binary."
+          "description": "Trusted absolute path to an existing Hermes binary (existing mode)."
         },
-        "hermes.profile": {
+        "hermesRangelTech.runtime.optionalPacks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "browser",
+            "media",
+            "computer-use",
+            "llm-cpu",
+            "llm-cuda",
+            "llm-hip",
+            "llm-vulkan",
+            "cli-tools",
+            "offline-cache"
+          ],
+          "scope": "machine-overridable",
+          "description": "Optional runtime packs to install with the core runtime. The default installs everything."
+        },
+        "hermesRangelTech.profile": {
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
           "description": "Optional Hermes profile to use for ACP sessions. Empty uses Hermes's current/default profile."
         },
-        "hermes.editApprovalMode": {
+        "hermesRangelTech.editApprovalMode": {
           "type": "string",
           "enum": [
             "default",
@@ -139,7 +213,7 @@
           "scope": "machine-overridable",
           "description": "ACP file-edit approval mode. Change it with Hermes: Select Edit Approval Mode."
         },
-        "hermes.debugLogs": {
+        "hermesRangelTech.debugLogs": {
           "type": "boolean",
           "default": false,
           "description": "Enable diagnostic ACP logs in the Hermes output channel."
@@ -152,23 +226,23 @@
     "build": "webpack --mode production",
     "lint": "tsc --noEmit",
     "secrets": "secretlint --secretlintrc .secretlintrc.json \"*.{md,json,js,ts,yml,yaml}\" \"src/**/*.{ts,json}\" \"scripts/**/*.{js,mjs,cjs,ts}\" \"tests/**/*.ts\" \".github/**/*.{md,yml,yaml}\" \"docs/**/*.md\" \"resources/**/*.md\"",
-    "test": "npm run test:profile && npm run test:background && npm run test:audit-policy && npm run test:release-policy",
+    "test": "npm run test:profile && npm run test:background && npm run test:audit-policy",
     "posttest": "node -e \"require('node:fs').rmSync('out-test', { recursive: true, force: true })\"",
     "dev": "webpack --mode development --watch",
     "package": "vsce package --no-dependencies",
-    "package:verify": "npm run package -- --out hermes-ai-agent-maintained-ci.vsix && vsce ls",
+    "package:verify": "npm run package -- --out hermes-by-rangel-tech-ci.vsix && vsce ls",
     "audit": "node scripts/audit-all-locked.mjs",
     "verify": "npm run lint && npm run secrets && npm test && npm run build && npm run audit && npm run package:verify",
     "test:profile": "tsc --module commonjs --target ES2020 --types node --skipLibCheck --esModuleInterop --strict --outDir out-test tests/acpLaunchArgs.test.ts tests/profileUi.test.ts src/acpLaunchArgs.ts src/profileUi.ts && node out-test/tests/acpLaunchArgs.test.js && node out-test/tests/profileUi.test.js",
     "test:background": "node scripts/run-background-tests.mjs",
-    "test:audit-policy": "node --test scripts/audit-all-locked.test.mjs",
-    "test:release-policy": "node --test scripts/validate-marketplace-release.test.mjs"
+    "test:audit-policy": "node --test scripts/audit-all-locked.test.mjs"
   },
   "devDependencies": {
     "@secretlint/secretlint-rule-preset-recommend": "^10.2.2",
     "@types/dompurify": "^3.0.5",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.9.2",
     "secretlint": "^10.2.2",
     "ts-loader": "^9.5.0",
@@ -179,6 +253,7 @@
   },
   "dependencies": {
     "dompurify": "^3.4.12",
-    "marked": "^17.0.6"
+    "marked": "^17.0.6",
+    "tar": "^7.4.3"
   }
 }

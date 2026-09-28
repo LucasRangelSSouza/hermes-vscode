@@ -1,0 +1,42 @@
+Hermes by Rangel Tech
+Copyright (c) 2026 Rangel Tech
+
+This is a community project. It is not affiliated with, endorsed by or sponsored by Nous Research.
+
+Derived work
+------------
+This extension is derived from hermes-vscode, distributed under the MIT License:
+
+  Copyright (c) 2026 Joao Peixoto            https://github.com/joaompfp/hermes-vscode
+  Copyright (c) 2026 Stefan van Biljon and contributors
+                                             https://github.com/stefanpieter/hermes-vscode
+
+The original copyright and permission notice is preserved in LICENSE.
+
+Runtime
+-------
+The extension downloads a Hermes runtime from this repository's GitHub Releases. The runtime contains
+third-party software under its own licenses. Every runtime pack carries the license files of what it
+contains. The main components are:
+
+  Hermes Agent          MIT            https://github.com/NousResearch/hermes-agent
+  Python                PSF License    https://www.python.org
+  uv                    MIT / Apache-2.0
+  ripgrep               MIT / Unlicense
+  Node.js and npm       MIT / Artistic-2.0
+  ffmpeg                LGPL/GPL (build dependent)
+  Chromium              BSD-3-Clause and others
+  llama.cpp             MIT
+  GitHub CLI            MIT
+  Python packages       each under its own license, listed in the runtime's package metadata
+
+Git for Windows (Windows runtime only)
+--------------------------------------
+The Windows runtime includes PortableGit, distributed under the GNU General Public License v2.
+The corresponding source code is available from the Git for Windows project:
+
+  https://github.com/git-for-windows/git
+
+and from https://github.com/git-for-windows/build-extra. On request, the maintainers of this project will
+provide the same source for at least three years from the date of the release that contains it. Contact:
+comercial@rangeltech.net.

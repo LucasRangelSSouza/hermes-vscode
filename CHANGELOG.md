@@ -1,3 +1,30 @@
+# Changelog
+
+## 0.1.0 - unreleased
+
+First release of Hermes by Rangel Tech, derived from `hermes-vscode` 3.6.0.
+
+### Added
+- Managed Hermes runtime: downloaded from GitHub Releases as SHA-256 verified packs, extracted into a user folder, validated with `--version` and `--check`, with resume, a cross-window install lock and safe extraction.
+- Portable runtime mode for networks that block the download, and existing-Hermes mode.
+- Provider wizard for OpenAI-compatible endpoints with a four-step connection test (reach, auth, model, inference) and classified errors.
+- API keys in VS Code Secret Storage, passed to Hermes only through the process environment. Log redaction for keys and tokens.
+- Private Hermes home so the extension never touches an existing `~/.hermes`.
+- Commands: Setup, Configure Provider, Test Provider Connection, Install or Repair Runtime, Select Portable Runtime Folder, Show Runtime Status, Show Logs.
+- Windows x64 and Linux x64 runtimes built by CI on native runners.
+
+### Changed
+- Renamed the extension, commands, views and settings to `hermesRangelTech.*`. Session storage uses a new key.
+- Process trees are ended on Windows so tool processes do not outlive the agent.
+- Profile listing and version detection work on Windows (path separator, no `which`).
+
+### Removed
+- Upstream Marketplace publishing workflows, governance documents and the original-extension coexistence guard.
+
+---
+
+Changes below this line are from the upstream `hermes-vscode` history.
+
 # Change Log
 
 ## A note on versioning

@@ -11,7 +11,13 @@ import { ChatPanelProvider } from './chatPanel';
 import { selectedPermissionResponse } from './permissionResponse';
 import { applyProfileSelection } from './profileSelection';
 import { ensureAcpClientStarted } from './connectionLifecycle';
-import { isOriginalExtensionInstalled, ORIGINAL_EXTENSION_ID } from './successorIdentity';
+import { activeHermesHome, setActiveHermesHome } from './paths/hermesHome';
+import { buildRuntimeEnv } from './runtime/process';
+import { readActive } from './runtime/installer';
+import { redact } from './secrets/redactor';
+import { RuntimeService } from './runtimeService';
+import type { ResolvedRuntime } from './runtimeService';
+import { ProviderService } from './providerService';
 import {
   EDIT_APPROVAL_MODES,
   EditApprovalModeId,
@@ -20,7 +26,7 @@ import {
 } from './editApprovalMode';
 
 const DEFAULT_SONNET_MODEL = 'claude-sonnet-4-6';
-const APPROVED_BINARIES_KEY = 'hermes.approvedBinaries';
+const APPROVED_BINARIES_KEY = 'hermesRangelTech.approvedBinaries';
 
 function extractModelFromHermesConfig(content: string): string | null {
   const lines = content.split(/\r?\n/);
@@ -55,7 +61,7 @@ function extractModelFromHermesConfig(content: string): string | null {
 
 function readHermesModel(): { model: string; source: 'env' | 'config' | 'fallback' } {
   try {
-    const configPath = path.join(os.homedir(), '.hermes', 'config.yaml');
+    const configPath = path.join(activeHermesHome(), 'config.yaml');
     const content = fs.readFileSync(configPath, 'utf8');
     const model = extractModelFromHermesConfig(content);
     if (model) {
@@ -73,25 +79,17 @@ function readHermesVersion(hermesPath: string): string {
     const output = execFileSync(hermesPath, ['--version'], {
       timeout: 5000,
       encoding: 'utf8',
-      env: { ...process.env, PATH: `${path.dirname(hermesPath)}:${process.env.PATH ?? ''}` },
+      env: { ...process.env, PATH: `${path.dirname(hermesPath)}${path.delimiter}${process.env.PATH ?? ''}` },
     });
-    const match = output.match(/v(\d+\.\d+\.\d+)/);
+    const match = output.match(/(\d+\.\d+\.\d+)/);
     return match?.[1] ? `v${match[1]}` : '';
   } catch {
     return '';
   }
 }
 
-function readConfiguredHermesPath(): { value: string; workspaceOverrideIgnored: boolean } {
-  const hermesConfig = vscode.workspace.getConfiguration('hermes');
-  const inspected = hermesConfig.inspect<string>('path');
-  const workspaceOverrideIgnored = !!(inspected?.workspaceValue || inspected?.workspaceFolderValue);
-  const value = inspected?.globalValue ?? inspected?.defaultValue ?? 'hermes';
-  return { value, workspaceOverrideIgnored };
-}
-
 function readConfiguredHermesProfile(): { value: string; workspaceOverrideIgnored: boolean } {
-  const hermesConfig = vscode.workspace.getConfiguration('hermes');
+  const hermesConfig = vscode.workspace.getConfiguration('hermesRangelTech');
   const inspected = hermesConfig.inspect<string>('profile');
   const workspaceOverrideIgnored = !!(inspected?.workspaceValue || inspected?.workspaceFolderValue);
   const value = normalizeHermesProfile(inspected?.globalValue ?? inspected?.defaultValue ?? '');
@@ -99,7 +97,7 @@ function readConfiguredHermesProfile(): { value: string; workspaceOverrideIgnore
 }
 
 function readConfiguredEditApprovalMode(): { value: EditApprovalModeId; workspaceOverrideIgnored: boolean } {
-  const hermesConfig = vscode.workspace.getConfiguration('hermes');
+  const hermesConfig = vscode.workspace.getConfiguration('hermesRangelTech');
   const inspected = hermesConfig.inspect<string>('editApprovalMode');
   const workspaceOverrideIgnored = !!(inspected?.workspaceValue || inspected?.workspaceFolderValue);
   const value = normalizeEditApprovalMode(inspected?.globalValue ?? inspected?.defaultValue ?? 'default');
@@ -120,7 +118,7 @@ function profileLabel(profile: string, defaultProfileName = ''): string {
 
 function readDefaultHermesProfileName(): string {
   try {
-    return fs.readFileSync(path.join(os.homedir(), '.hermes', 'default_profile_name'), 'utf8').trim();
+    return fs.readFileSync(path.join(activeHermesHome(), 'default_profile_name'), 'utf8').trim();
   } catch {
     return '';
   }
@@ -130,8 +128,8 @@ function profileRestartRequired(client: AcpClient | null): boolean {
   return isProfileRestartRequired(!!client?.running, client?.selectedProfile ?? '', client?.launchedProfile ?? '');
 }
 
-function buildProfileState(hermesPath: string, currentProfile: string, restartRequired: boolean, defaultProfileName = '') {
-  const profiles = readAvailableHermesProfiles(hermesPath);
+function buildProfileState(hermesPath: string, currentProfile: string, restartRequired: boolean, defaultProfileName = '', env: NodeJS.ProcessEnv = process.env) {
+  const profiles = readAvailableHermesProfiles(hermesPath, env);
   if (currentProfile && !profiles.includes(currentProfile)) profiles.push(currentProfile);
   return {
     profile: currentProfile,
@@ -140,61 +138,18 @@ function buildProfileState(hermesPath: string, currentProfile: string, restartRe
   };
 }
 
-function readAvailableHermesProfiles(hermesPath: string): string[] {
+function readAvailableHermesProfiles(hermesPath: string, env: NodeJS.ProcessEnv = process.env): string[] {
   try {
     const output = execFileSync(hermesPath, ['profile', 'list'], {
       timeout: 5000,
       encoding: 'utf8',
-      env: { ...process.env, PATH: `${path.dirname(hermesPath)}:${process.env.PATH ?? ''}` },
+      env: { ...env, PATH: `${path.dirname(hermesPath)}${path.delimiter}${env.PATH ?? ''}` },
+      windowsHide: true,
     });
     return parseHermesProfileList(output);
   } catch {
     return [];
   }
-}
-
-function resolveHermesBinary(configuredPath: string): string {
-  let hermesPath = configuredPath;
-
-  if (hermesPath !== 'hermes' && !path.isAbsolute(hermesPath)) {
-    throw new Error('hermes.path must be an absolute path or the default "hermes" value');
-  }
-
-  if (hermesPath === 'hermes') {
-    try {
-      const resolved = execFileSync('which', ['hermes'], { timeout: 3000, encoding: 'utf8' }).trim();
-      if (resolved) hermesPath = resolved;
-    } catch {
-      // not in PATH
-    }
-
-    if (hermesPath === 'hermes') {
-      const tryPaths = [
-        path.join(os.homedir(), '.local', 'bin', 'hermes'),
-        '/usr/local/bin/hermes',
-        '/usr/bin/hermes',
-      ];
-      for (const candidate of tryPaths) {
-        try {
-          if (fs.existsSync(candidate)) {
-            hermesPath = candidate;
-            break;
-          }
-        } catch {
-          // skip unreadable candidate
-        }
-      }
-    }
-  }
-
-  if (!path.isAbsolute(hermesPath)) {
-    throw new Error(`Unable to resolve hermes binary from setting "${configuredPath}"`);
-  }
-  if (!fs.existsSync(hermesPath)) {
-    throw new Error(`Configured hermes binary does not exist: ${hermesPath}`);
-  }
-
-  return hermesPath;
 }
 
 async function ensureTrustedBinary(
@@ -269,65 +224,56 @@ function optionIdByIntent(params: unknown, intent: 'allow' | 'deny'): string | n
 let client: AcpClient | null = null;
 let outputChannel: vscode.OutputChannel;
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  if (isOriginalExtensionInstalled(extensionId => vscode.extensions.getExtension(extensionId))) {
-    void vscode.window.showErrorMessage(
-      `Hermes AI Agent (Maintained) is disabled while ${ORIGINAL_EXTENSION_ID} is installed. `
-      + 'Disable or uninstall the original extension, then reload VS Code.',
-    );
-    return;
-  }
+function logLine(line: string): void {
+  outputChannel.appendLine(redact(line));
+}
 
-  outputChannel = vscode.window.createOutputChannel('Hermes');
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  outputChannel = vscode.window.createOutputChannel('Hermes by Rangel Tech');
   context.subscriptions.push(outputChannel);
 
-  const configuredHermes = readConfiguredHermesPath();
-  if (configuredHermes.workspaceOverrideIgnored) {
-    outputChannel.appendLine('[security] Ignoring workspace-scoped hermes.path override');
-  }
+  const runtimeService = new RuntimeService(context, logLine);
+  const providerService = new ProviderService(context, logLine, runtimeService.paths.state);
 
-  let hermesPath = configuredHermes.value;
+  // CLI executable of the runtime in use. Filled in by ensureConnected.
+  let hermesPath = '';
+  let launchEnv: NodeJS.ProcessEnv | null = null;
   const configuredProfile = readConfiguredHermesProfile();
   if (configuredProfile.workspaceOverrideIgnored) {
-    outputChannel.appendLine('[security] Ignoring workspace-scoped hermes.profile override');
+    logLine('[security] Ignoring workspace-scoped profile override');
   }
   let hermesProfile = configuredProfile.value;
   let defaultProfileName = readDefaultHermesProfileName();
   const configuredEditApproval = readConfiguredEditApprovalMode();
   if (configuredEditApproval.workspaceOverrideIgnored) {
-    outputChannel.appendLine('[security] Ignoring workspace-scoped hermes.editApprovalMode override');
+    logLine('[security] Ignoring workspace-scoped hermes.editApprovalMode override');
   }
   let editApprovalMode = configuredEditApproval.value;
 
-  outputChannel.appendLine(`[hermes] homedir: ${os.homedir()}`);
-  outputChannel.appendLine(`[hermes] platform: ${process.platform}`);
-  try {
-    hermesPath = resolveHermesBinary(hermesPath);
-    outputChannel.appendLine(`[hermes] binary: ${hermesPath}`);
-    outputChannel.appendLine(`[hermes] ${profileLabel(hermesProfile, defaultProfileName)}`);
-    outputChannel.appendLine(`[security] edit approval mode: ${editApprovalMode}`);
-  } catch (err) {
-    outputChannel.appendLine(`[security] invalid Hermes binary: ${err}`);
-  }
+  logLine(`[hermes] platform: ${process.platform}-${process.arch}`);
+  logLine(`[hermes] data folder: ${runtimeService.paths.root}`);
+  logLine(`[hermes] runtime mode: ${runtimeService.mode()}`);
+  logLine(`[security] edit approval mode: ${editApprovalMode}`);
 
-  const hermesConfig = vscode.workspace.getConfiguration('hermes');
+  const hermesConfig = vscode.workspace.getConfiguration('hermesRangelTech');
   const debugLogs = hermesConfig.get<boolean>('debugLogs', false);
 
+  const debugEnv: NodeJS.ProcessEnv = debugLogs ? { HERMES_LOG_LEVEL: 'DEBUG' } : {};
   client = new AcpClient(
     hermesPath,
-    debugLogs ? { HERMES_LOG_LEVEL: 'DEBUG' } : {},
+    () => launchEnv ?? { ...process.env, ...debugEnv },
     debugLogs,
     hermesProfile,
   );
 
   if (debugLogs) {
     outputChannel.show(true);
-    outputChannel.appendLine('[hermes] ACP diagnostic logging enabled');
+    logLine('[hermes] ACP diagnostic logging enabled');
   }
 
-  client.on('log', (line: string) => outputChannel.appendLine(line));
+  client.on('log', (line: string) => logLine(line));
   client.on('exit', (code: number) => {
-    outputChannel.appendLine(`[hermes acp exited: code ${code}]`);
+    logLine(`[hermes acp exited: code ${code}]`);
     setStatus('disconnected');
   });
 
@@ -344,12 +290,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
 
     if (choice === allow && allowOptionId) {
-      outputChannel.appendLine('[security] permission granted once');
+      logLine('[security] permission granted once');
       return selectedPermissionResponse(allowOptionId);
     }
 
     if (denyOptionId) {
-      outputChannel.appendLine('[security] permission denied');
+      logLine('[security] permission denied');
       return selectedPermissionResponse(denyOptionId);
     }
 
@@ -358,17 +304,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const session = new SessionManager(
     client,
-    line => outputChannel.appendLine(line),
+    line => logLine(line),
     permissionHandler,
     editApprovalMode,
   );
-  const { model: hermesModel } = readHermesModel();
-  const hermesVersion = readHermesVersion(hermesPath);
+  const hermesModel = providerService.store.active()?.model ?? readHermesModel().model;
+  const hermesVersion = readActive(runtimeService.paths)?.hermes.ref.replace(/^v/, '') ?? '';
   const applySelectedProfile = async (nextProfile: string, source: string) => {
     const result = await applyProfileSelection(nextProfile, {
       currentProfile: () => hermesProfile,
       persistProfile: async profile => {
-        await vscode.workspace.getConfiguration('hermes').update('profile', profile, vscode.ConfigurationTarget.Global);
+        await vscode.workspace.getConfiguration('hermesRangelTech').update('profile', profile, vscode.ConfigurationTarget.Global);
       },
       setCurrentProfile: profile => { hermesProfile = profile; },
       setClientProfile: profile => { client?.setProfile(profile); },
@@ -379,7 +325,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       setDisconnected: () => { setStatus('disconnected'); },
     });
     if (result.changed) {
-      outputChannel.appendLine(`[hermes] selected ${profileLabel(result.profile, defaultProfileName)} from ${source}`);
+      logLine(`[hermes] selected ${profileLabel(result.profile, defaultProfileName)} from ${source}`);
     }
     return result;
   };
@@ -389,10 +335,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     hermesModel,
     hermesVersion,
     context,
-    line => outputChannel.appendLine(line),
+    line => logLine(line),
     {
       currentProfile: () => hermesProfile,
-      profileItems: () => buildProfileState(hermesPath, hermesProfile, profileRestartRequired(client), defaultProfileName).profileItems,
+      profileItems: () => buildProfileState(hermesPath, hermesProfile, profileRestartRequired(client), defaultProfileName, launchEnv ?? process.env).profileItems,
       restartRequired: () => profileRestartRequired(client),
       selectProfile: async (nextProfile: string) => {
         const result = await applySelectedProfile(nextProfile, 'webview');
@@ -426,27 +372,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Commands
   context.subscriptions.push(
-    vscode.commands.registerCommand('hermes.openChat', async () => {
-      outputChannel.appendLine('[ui] open chat');
-      await vscode.commands.executeCommand('hermes.chatView.focus');
+    vscode.commands.registerCommand('hermesRangelTech.openChat', async () => {
+      logLine('[ui] open chat');
+      await vscode.commands.executeCommand('hermesRangelTech.chatView.focus');
       await ensureConnected();
     }),
 
-    vscode.commands.registerCommand('hermes.restartAgent', async () => {
-      outputChannel.appendLine('[hermes] restarting ACP from command palette');
+    vscode.commands.registerCommand('hermesRangelTech.restartAgent', async () => {
+      logLine('[hermes] restarting ACP from command palette');
       if (await panel.requestHermesRestart()) {
         vscode.window.showInformationMessage('Hermes Agent restarted.');
       }
     }),
 
-    vscode.commands.registerCommand('hermes.newSession', async () => {
-      outputChannel.appendLine('[ui] new session');
+    vscode.commands.registerCommand('hermesRangelTech.newSession', async () => {
+      logLine('[ui] new session');
       await panel.requestNewSession();
     }),
 
-    vscode.commands.registerCommand('hermes.selectProfile', async () => {
-      outputChannel.appendLine('[ui] select profile');
-      const profiles = readAvailableHermesProfiles(hermesPath);
+    vscode.commands.registerCommand('hermesRangelTech.selectProfile', async () => {
+      logLine('[ui] select profile');
+      const profiles = readAvailableHermesProfiles(hermesPath, launchEnv ?? process.env);
       const picked = await vscode.window.showQuickPick(
         [
           { label: profileDisplayName('', defaultProfileName), description: 'Use Hermes current/default profile', profile: '' },
@@ -471,8 +417,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await panel.requestProfileSelection(nextProfile);
     }),
 
-    vscode.commands.registerCommand('hermes.selectEditApprovalMode', async () => {
-      outputChannel.appendLine('[ui] select edit approval mode');
+    vscode.commands.registerCommand('hermesRangelTech.selectEditApprovalMode', async () => {
+      logLine('[ui] select edit approval mode');
       const picked = await vscode.window.showQuickPick(
         EDIT_APPROVAL_MODES.map(mode => ({
           label: mode.label,
@@ -491,21 +437,52 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await ensureConnected();
         if (!client?.running) throw new Error('ACP client is not connected');
         await session.setEditApprovalMode(picked.modeId, resolveWorkingDirectory());
-        await vscode.workspace.getConfiguration('hermes').update(
+        await vscode.workspace.getConfiguration('hermesRangelTech').update(
           'editApprovalMode',
           picked.modeId,
           vscode.ConfigurationTarget.Global,
         );
         editApprovalMode = picked.modeId;
-        outputChannel.appendLine(`[security] edit approval mode changed to ${editApprovalMode}`);
+        logLine(`[security] edit approval mode changed to ${editApprovalMode}`);
         void vscode.window.showInformationMessage(
           `Hermes edit approval mode: ${editApprovalModeLabel(editApprovalMode)}.`,
         );
       } catch (err) {
-        outputChannel.appendLine(`[security] failed to change edit approval mode: ${err}`);
+        logLine(`[security] failed to change edit approval mode: ${err}`);
         void vscode.window.showErrorMessage(`Hermes: failed to change edit approval mode — ${err}`);
       }
     }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('hermesRangelTech.setup', async () => {
+      logLine('[ui] setup');
+      await vscode.commands.executeCommand('hermesRangelTech.openChat');
+    }),
+    vscode.commands.registerCommand('hermesRangelTech.configureProvider', async () => {
+      const profile = await providerService.configure();
+      if (profile) {
+        logLine(`[ui] provider "${profile.name}" saved`);
+        await restartIfRunning();
+        if (!client?.running) await ensureConnected();
+      }
+    }),
+    vscode.commands.registerCommand('hermesRangelTech.testConnection', () => providerService.testActive()),
+    vscode.commands.registerCommand('hermesRangelTech.installRuntime', async () => {
+      const wasRunning = client?.running ?? false;
+      if (wasRunning) client?.stop();
+      const active = await runtimeService.install();
+      if (active) { session.reset(); await ensureConnected(); }
+    }),
+    vscode.commands.registerCommand('hermesRangelTech.selectPortableRuntime', async () => {
+      if (await runtimeService.selectPortable()) { client?.stop(); session.reset(); await ensureConnected(); }
+    }),
+    vscode.commands.registerCommand('hermesRangelTech.runtimeStatus', async () => {
+      const text = await runtimeService.status();
+      logLine(`[runtime] status\n${text}`);
+      void vscode.window.showInformationMessage(text, { modal: true });
+    }),
+    vscode.commands.registerCommand('hermesRangelTech.showLogs', () => outputChannel.show(true)),
   );
 
   // Status bar
@@ -514,7 +491,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     100,
   );
   statusItem.text = `$(circle-outline) Hermes: ${profileDisplayName(hermesProfile, defaultProfileName)}`;
-  statusItem.command = 'hermes.openChat';
+  statusItem.command = 'hermesRangelTech.openChat';
   statusItem.show();
   context.subscriptions.push(statusItem);
 
@@ -529,52 +506,94 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     panel.refreshProfileState();
   }
 
-  async function ensureConnected(): Promise<void> {
+  let connecting: Promise<void> | null = null;
+  function ensureConnected(): Promise<void> {
+    if (!connecting) {
+      connecting = doEnsureConnected().finally(() => { connecting = null; });
+    }
+    return connecting;
+  }
+
+  async function restartIfRunning(): Promise<void> {
+    if (!client?.running) return;
+    client.stop();
+    session.reset();
+    await ensureConnected();
+  }
+
+  async function doEnsureConnected(): Promise<void> {
     if (!client) return;
     if (!vscode.workspace.isTrusted) {
-      outputChannel.appendLine('[security] workspace is not trusted; Hermes launch blocked');
+      logLine('[security] workspace is not trusted; Hermes launch blocked');
       setStatus('disconnected');
       void vscode.window.showWarningMessage('Hermes is disabled until this workspace is trusted.');
       return;
     }
 
-    try {
-      hermesPath = resolveHermesBinary(readConfiguredHermesPath().value);
-      const configuredProfileNow = readConfiguredHermesProfile();
-      if (configuredProfileNow.workspaceOverrideIgnored) {
-        outputChannel.appendLine('[security] Ignoring workspace-scoped hermes.profile override');
-      }
-      hermesProfile = configuredProfileNow.value;
-      defaultProfileName = readDefaultHermesProfileName();
-    } catch (err) {
+    const resolved: ResolvedRuntime | null = await runtimeService.resolve(true);
+    if (!resolved) {
       setStatus('disconnected');
-      vscode.window.showErrorMessage(`Hermes: invalid binary path — ${err}`);
       return;
+    }
+    logLine(`[runtime] using ${resolved.label}`);
+    setActiveHermesHome(resolved.hermesHome);
+    hermesPath = resolved.cliExe;
+    defaultProfileName = readDefaultHermesProfileName();
+
+    if (resolved.managed) {
+      const provider = await providerService.ensureActive(true);
+      if (!provider) {
+        logLine('[provider] no provider configured');
+        setStatus('disconnected');
+        const go = await vscode.window.showWarningMessage('Hermes needs a provider (endpoint, model and key) before it can start.', 'Configure provider');
+        if (go) void vscode.commands.executeCommand('hermesRangelTech.configureProvider');
+        return;
+      }
+      try {
+        const extra = await providerService.prepare(resolved, provider);
+        launchEnv = buildRuntimeEnv(process.env, { hermesHome: resolved.hermesHome, extra });
+        Object.assign(launchEnv, debugEnv);
+      } catch (err) {
+        logLine(`[provider] could not apply settings: ${err}`);
+        setStatus('disconnected');
+        void vscode.window.showErrorMessage(`Hermes: ${err instanceof Error ? err.message : err}`);
+        return;
+      }
+      client.setLaunchArgs(resolved.entryArgs);
+    } else {
+      // An existing Hermes keeps its own home, profiles and provider settings.
+      launchEnv = { ...process.env, ...debugEnv };
+      client.setLaunchArgs(null);
+      const approved = await ensureTrustedBinary(context, resolved.entryExe);
+      if (!approved) {
+        logLine('[security] Hermes launch cancelled by user');
+        setStatus('disconnected');
+        return;
+      }
     }
 
-    const approved = await ensureTrustedBinary(context, hermesPath);
-    if (!approved) {
-      outputChannel.appendLine('[security] Hermes launch cancelled by user');
-      setStatus('disconnected');
-      return;
+    const configuredProfileNow = readConfiguredHermesProfile();
+    if (configuredProfileNow.workspaceOverrideIgnored) {
+      logLine('[security] Ignoring workspace-scoped profile override');
     }
-    client.setHermesPath(hermesPath);
+    hermesProfile = configuredProfileNow.value;
+    client.setHermesPath(resolved.entryExe);
     client.setProfile(hermesProfile);
 
     try {
       await ensureAcpClientStarted(
         client,
         () => {
-          outputChannel.appendLine('[acp] connecting');
+          logLine('[acp] connecting');
           setStatus('connecting');
         },
         () => {
-          outputChannel.appendLine('[acp] connected');
+          logLine('[acp] connected');
           setStatus('connected');
         },
       );
     } catch (err) {
-      outputChannel.appendLine(`[acp] connect failed: ${err}`);
+      logLine(`[acp] connect failed: ${err}`);
       setStatus('disconnected');
       vscode.window.showErrorMessage(`Hermes: failed to start — ${err}`);
     }

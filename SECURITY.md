@@ -1,47 +1,31 @@
 # Security policy
 
-## Supported code
+## Supported versions
 
-Security fixes are developed against the current maintained branch. The original Marketplace release and older development VSIX files may not contain current fixes.
+Security fixes go to the default branch and the latest GitHub release.
 
 | Line | Status |
 |---|---|
-| Maintained default branch | Supported |
-| Latest `stefanpieter.hermes-ai-agent-maintained` Marketplace release (`3.6.0`) | Supported |
-| Latest maintained GitHub release | Supported |
-| Original `joaompfp` Marketplace release | Original-publisher-owned; not this project's release channel |
-| Older local VSIX builds | Unsupported |
+| `main` | Supported |
+| Latest GitHub release | Supported |
+| Older builds | Unsupported |
 
 ## Reporting a vulnerability
 
-Use this repository's private vulnerability reporting / Security Advisories interface. Include:
+Do not open a public issue. Use either:
 
-- affected version or commit
-- impact and threat model
-- reproduction steps or a minimal proof of concept
-- whether credentials or user data may have been exposed
-- any known mitigation
+- GitHub's private vulnerability reporting on this repository (Security → Report a vulnerability), or
+- email `comercial@rangeltech.net` with the subject `Hermes by Rangel Tech security`.
 
-Do not include secrets, production credentials, private source, or personal Hermes state databases.
+Include the affected version or commit, the impact, and steps to reproduce. You will get an acknowledgement, and a fix or a mitigation plan as soon as it can be verified.
 
-If private vulnerability reporting is temporarily unavailable, open a public issue containing no vulnerability detail and ask the maintainer to establish a private channel. Do not disclose the vulnerability itself in that issue.
+## Areas that matter most
 
-The maintainers aim to acknowledge reports within three business days. Resolution timing depends on severity and coordination needs.
+- Runtime download and extraction: host allowlist, HTTPS only, SHA-256 verification, safe extraction.
+- Secret handling: API keys stay in VS Code Secret Storage and reach Hermes only through the process environment. They must never appear in settings, files, logs or session history.
+- Executable launch: settings that choose what runs are machine-scoped; a workspace must not override them.
+- Webview rendering of untrusted content.
 
-## Security boundaries
+## Out of scope
 
-The extension executes a user-selected Hermes binary and renders data received over ACP. Security-sensitive areas include:
-
-- executable-path trust and launch arguments
-- ACP permission responses
-- webview HTML and command-message handling
-- file locations returned by tools
-- process/session generation isolation
-- persisted workspace and global state
-- release artefacts and Marketplace credentials
-
-A report about Hermes Agent itself should be sent to the Hermes Agent maintainers unless the extension creates or amplifies the vulnerability.
-
-## Disclosure
-
-Coordinated disclosure is preferred. Security advisories should credit reporters who want attribution and should not publish exploit detail before users have a reasonable upgrade path.
+Vulnerabilities in Hermes Agent itself should be reported to [Nous Research](https://github.com/NousResearch/hermes-agent/security). Endpoint security products that block the runtime are a policy matter, not a vulnerability.

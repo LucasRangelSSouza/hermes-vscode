@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { activeHermesHome } from './paths/hermesHome';
 
 export interface SkillEntry {
   name: string;
@@ -20,7 +21,7 @@ export interface SkillGroup {
 
 /** Scan ~/.hermes/skills/ and return grouped skills sorted alphabetically. */
 export function loadHermesSkills(): SkillGroup[] {
-  const skillsDir = path.join(os.homedir(), '.hermes', 'skills');
+  const skillsDir = path.join(activeHermesHome(), 'skills');
   if (!fs.existsSync(skillsDir)) return [];
 
   const groups: SkillGroup[] = [];

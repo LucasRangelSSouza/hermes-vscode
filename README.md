@@ -1,101 +1,79 @@
-# Hermes AI Agent for VS Code
+# Hermes by Rangel Tech
 
-A VS Code sidebar client for [Hermes Agent](https://github.com/NousResearch/hermes-agent), communicating with a local Hermes process over the Agent Client Protocol (ACP).
+A community VS Code integration for [Hermes Agent](https://hermes-agent.nousresearch.com). Install the extension, connect your model and start coding. The extension downloads and manages the Hermes runtime for you, so you do not install Python, Node, Git or Hermes yourself.
 
-## Maintenance status
+> **Community project.** Not affiliated with, endorsed by or sponsored by Nous Research. Hermes Agent is their product; this extension only integrates it with VS Code.
 
-[`stefanpieter/hermes-vscode`](https://github.com/stefanpieter/hermes-vscode) is the canonical, actively maintained successor of the original `joaompfp/hermes-vscode` codebase. Development, issues, pull requests, security work, and source releases are managed here; the original repository is retained only as project provenance and is no longer a contribution target for this maintained line.
+It is derived from the MIT-licensed [`hermes-vscode`](https://github.com/stefanpieter/hermes-vscode) client (originally by Joao Peixoto). See [NOTICE](NOTICE).
 
-- Joao Peixoto remains credited as the original author and copyright holder.
-- The maintained successor is live on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=stefanpieter.hermes-ai-agent-maintained) as `stefanpieter.hermes-ai-agent-maintained`, with display name **Hermes AI Agent (Maintained)**. The globally unique package name distinguishes it from the original extension, while verified workload-identity automation controls publication.
-- The original `joaompfp.hermes-ai-agent` Marketplace listing remains owned by its original publisher and is not this project's release channel.
-- Stable GitHub releases whose `vX.Y.Z` tag exactly matches `package.json` are verified and published automatically through the protected `marketplace-production` environment.
+## What you get
 
-See the [governance policy](https://github.com/stefanpieter/hermes-vscode/blob/main/GOVERNANCE.md) and [transition plan](https://github.com/stefanpieter/hermes-vscode/blob/main/docs/plans/2026-07-24-maintained-successor-transition.md).
+- Streaming Hermes chat in the VS Code sidebar, with reasoning, tool calls, todos and usage.
+- A **managed runtime**: on first use the extension downloads a pinned, hash-verified Hermes runtime from this repository's GitHub Releases into your user folder. No administrator rights, no system installs.
+- A **provider wizard** for any OpenAI-compatible endpoint (base URL, model, API key) with a connection test that explains what is wrong.
+- Your API key stays in VS Code **Secret Storage**. It is handed to Hermes only as a process environment variable, never written to a file, a setting or a log.
+- Multiple persistent conversations, edit approvals, permission prompts, image paste, file references and slash commands.
+- Windows x64 and Linux x64.
 
-## Features
+## Install
 
-- Streaming Hermes chat in the VS Code sidebar
-- Multiple persistent workspace conversations
-- Hermes profile and model selection
-- ACP permission and edit-approval controls
-- Tool calls, reasoning, todos, usage, and context visibility
-- Live Lead/role activity chips with per-agent context usage and compression counts
-- Background-process lifecycle notifications
-- Busy-session follow-up queue with edit and delete controls
-- Image paste, file references, slash commands, and skill selection
-- Automatic file opening for read and edit tool calls
+1. Download `hermes-by-rangel-tech-<version>.vsix` from the [Releases](https://github.com/LucasRangelSSouza/hermes-vscode/releases) page.
+2. In VS Code: **Extensions** → `…` → **Install from VSIX…**
+3. Open the **Hermes** view in the activity bar. The first run asks to download the runtime, then walks you through the provider setup.
 
-## Requirements
+A trusted workspace is required. The extension stays disabled in Restricted Mode because it launches an autonomous agent with access to your workspace.
 
-1. A supported VS Code release (`^1.85.0` or newer).
-2. A working Hermes Agent installation.
-3. `hermes` available on `PATH`, or an explicit trusted path in `hermes.path`.
-4. A trusted workspace. The extension remains disabled in VS Code Restricted Mode because it launches an autonomous local agent with access to the current workspace.
+## First run
 
-Use the current [Hermes Agent documentation](https://hermes-agent.nousresearch.com/docs) for installation, providers, profiles, and ACP configuration.
+| Step | What happens |
+|---|---|
+| Runtime | A confirmation shows the download size, then installs to `%LOCALAPPDATA%\HermesByRangelTech` (Windows) or `~/.local/share/hermes-by-rangel-tech` (Linux). Nothing outside that folder is touched. |
+| Provider | Enter a name, the base URL (for example `https://api.example.com/v1`), the model id and the API key. The extension tests the connection before saving. |
+| Chat | Type in the sidebar. Hermes runs locally on your workspace; only the model calls go to your provider. |
 
-## Marketplace installation and migration
+Commands (Command Palette, prefix **Hermes:**): Setup, Configure Provider, Test Provider Connection, Install or Repair Runtime, Select Portable Runtime Folder, Show Runtime Status, Show Logs, New Session, Restart Agent.
 
-Install and keep **Hermes AI Agent (Maintained)** from the [Marketplace listing](https://marketplace.visualstudio.com/items?itemName=stefanpieter.hermes-ai-agent-maintained). If `joaompfp.hermes-ai-agent` is also installed, preserve any original-extension UI conversation content you still need, then uninstall the original extension and reload VS Code when no valuable ACP/background process is running. The maintained successor deliberately fails closed while the original is present because both extensions contribute overlapping Hermes commands, settings, and views.
+## Networks that block the download
 
-Existing `hermes.*` settings normally remain available. Extension-scoped conversation-list state and trusted-executable approvals do not migrate to the successor identity; approve the selected Hermes executable again if prompted. Uninstalling the original VS Code extension does not delete Hermes Agent's separately persisted runtime sessions. See [Migration from the original Marketplace extension](docs/migration-from-original.md) for the full transition and rollback guidance.
+Some organizations block GitHub downloads. Then use a portable runtime:
 
-## Development installation
+1. On a machine with access, download the runtime archives for your platform from the release named `runtime-<id>` (each release lists them; the extension's **Show Runtime Status** command tells you which one it expects).
+2. Extract all archives into one folder. It must contain `runtime.json`.
+3. Run **Hermes: Select Portable Runtime Folder** and pick that folder. The extension validates it before using it.
 
-```bash
-npm ci
-npm run verify
-code --install-extension hermes-ai-agent-maintained-ci.vsix
-```
+If endpoint security blocks the runtime, the extension shows the executable path and its SHA-256 so you can ask IT for an exception. It never tries to bypass a security control.
 
-The generated VSIX uses the maintained successor identity `stefanpieter.hermes-ai-agent-maintained`.
-
-After installing or updating a VSIX, reload the VS Code window when no valuable ACP/background process is running.
-
-## Configuration
+## Settings
 
 | Setting | Purpose |
 |---|---|
-| `hermes.path` | Trusted absolute path to the Hermes executable |
-| `hermes.profile` | Hermes profile launched by the ACP client |
-| `hermes.editApprovalMode` | ACP edit approval mode, when supported by Hermes |
+| `hermesRangelTech.runtime.mode` | `automatic` (default), `portable` or `existing` |
+| `hermesRangelTech.runtime.portablePath` | Folder used in portable mode |
+| `hermesRangelTech.runtime.existingPath` | Hermes binary used in existing mode (advanced) |
+| `hermesRangelTech.runtime.optionalPacks` | Optional runtime packs to install; the default installs everything |
+| `hermesRangelTech.profile` | Hermes profile (existing mode) |
+| `hermesRangelTech.editApprovalMode` | ACP file-edit approval mode |
+| `hermesRangelTech.debugLogs` | Diagnostic ACP logs |
 
-Configuration is machine-overridable. The extension asks for approval before launching a newly selected executable path.
+Settings that choose what executable runs are machine-scoped. A workspace cannot override them.
 
-## Build and verification
+## Privacy and security
+
+- Prompts, and file contents when Hermes needs them, go to **the provider you configured** and nowhere else. Rangel Tech runs no proxy and the extension has no telemetry.
+- The only other network access is the runtime download from this repository's GitHub Releases.
+- The runtime is verified against SHA-256 hashes embedded in the extension. A pack that does not match is deleted and nothing is installed. Downloads accept only HTTPS and GitHub release hosts.
+- The extension keeps its own Hermes home; it does not read or change an existing `~/.hermes`.
+- Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+
+## Development
 
 ```bash
 npm ci
 npm run verify
 ```
 
-`npm run verify` performs TypeScript checking, secret scanning, the regression suite, a production build, a dependency security audit, VSIX packaging, and package-file listing.
+`npm run verify` runs the type check, secret scan, tests, production build, dependency audit and VSIX packaging. See [docs/DEVELOPMENT_SPEC.md](docs/DEVELOPMENT_SPEC.md) for the design, [docs/spikes.md](docs/spikes.md) for the evidence behind it and [docs/releasing.md](docs/releasing.md) for how runtimes and releases are built.
 
-Individual commands:
+## License
 
-```bash
-npm run lint
-npm test
-npm run build
-npm run package
-```
-
-## Architecture
-
-- `src/extension.ts` — extension activation and command wiring
-- `src/acpClient.ts` — Hermes ACP subprocess and JSON-RPC lifecycle
-- `src/sessionManager.ts` — ACP sessions and streamed updates
-- `src/sessionStore.ts` — workspace session persistence
-- `src/chatPanel.ts` — extension-host authority for webview state
-- `src/webview/` — browser-side chat rendering and interaction
-
-The extension treats ACP/session state in the extension host as authoritative. Webview state is transient and must be rehydrated after recreation.
-
-## Contributing and security
-
-Read the [contribution guide](https://github.com/stefanpieter/hermes-vscode/blob/main/CONTRIBUTING.md) before submitting changes. Report vulnerabilities according to the [security policy](https://github.com/stefanpieter/hermes-vscode/blob/main/SECURITY.md), not through a public issue.
-
-## Licence
-
-MIT. See [LICENSE](LICENSE). The original copyright and permission notice are retained.
+MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AgentActivity } from './agentActivity';
 import type { DelegationRegistration } from './types';
+import { activeHermesHomeOrNull } from './paths/hermesHome';
 export type { DelegationRegistration } from './types';
 
 export interface DelegationActivityScope {
@@ -254,6 +255,8 @@ export async function loadDelegationActivities(
 }
 
 export function defaultHermesHome(): string {
+  const active = activeHermesHomeOrNull();
+  if (active) return active;
   const configured = process.env.HERMES_HOME?.trim();
   return configured ? path.resolve(configured) : path.join(os.homedir(), '.hermes');
 }

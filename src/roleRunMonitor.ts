@@ -2,6 +2,7 @@ import { open, readdir, realpath, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { AgentActivity } from './agentActivity';
+import { activeHermesHome } from './paths/hermesHome';
 
 export interface RoleRunScope {
   workspaceRoot: string;
@@ -294,7 +295,7 @@ export async function loadRoleRunActivities(
 }
 
 export function defaultRoleRunsRoot(): string {
-  return path.join(os.homedir(), '.hermes', 'role-runs');
+  return path.join(activeHermesHome(), 'role-runs');
 }
 
 export class RoleRunMonitor {

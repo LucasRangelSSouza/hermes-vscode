@@ -22,7 +22,7 @@ moduleLoader._load = originalLoad;
 
 test('renames the session bound to a semantic ACP title update', () => {
   const state = new Map<string, unknown>([
-    ['hermes.sessions', [
+    ['hermesRangelTech.sessions', [
       { id: 'local-a', title: 'First message fallback', createdAt: 1, messages: [], acpSessionId: 'acp-a' },
       { id: 'local-b', title: 'Other session', createdAt: 2, messages: [], acpSessionId: 'acp-b' },
     ]],

@@ -13,6 +13,17 @@ import {
   type DelegationRegistration,
 } from '../delegationActivityMonitor';
 
+/** Creating symlinks needs Developer Mode or elevation on Windows. Those tests only apply where it is allowed. */
+async function trySymlink(target: string, link: string): Promise<boolean> {
+  try {
+    await symlink(target, link);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EPERM') return false;
+    throw err;
+  }
+}
+
 async function createDelegation(
   hermesHome: string,
   delegationId: string,
@@ -271,7 +282,7 @@ test('rejects malformed manifests with duplicate task identities', async () => {
   assert.deepEqual(await loadDelegationActivities(hermesHome, [registration]), []);
 });
 
-test('rejects a delegation directory symlink that escapes the active Hermes home', async () => {
+test('rejects a delegation directory symlink that escapes the active Hermes home', async (t) => {
   const hermesHome = await mkdtemp(path.join(tmpdir(), 'hermes-delegation-home-'));
   const foreignHome = await mkdtemp(path.join(tmpdir(), 'foreign-delegation-home-'));
   const foreign = await createDelegation(foreignHome, 'deleg_feedface', [
@@ -279,7 +290,10 @@ test('rejects a delegation directory symlink that escapes the active Hermes home
   ]);
   const liveRoot = path.join(hermesHome, 'cache', 'delegation', 'live');
   await mkdir(liveRoot, { recursive: true });
-  await symlink(path.dirname(foreign.transcriptPaths[0]), path.join(liveRoot, 'deleg_feedface'));
+  if (!(await trySymlink(path.dirname(foreign.transcriptPaths[0]), path.join(liveRoot, 'deleg_feedface')))) {
+    t.skip('symlinks are not permitted for this user (Windows needs Developer Mode)');
+    return;
+  }
 
   const registration = {
     delegationId: 'deleg_feedface',
@@ -288,7 +302,7 @@ test('rejects a delegation directory symlink that escapes the active Hermes home
   assert.deepEqual(await loadDelegationActivities(hermesHome, [registration]), []);
 });
 
-test('rejects a manifest symlink that escapes the exact delegation directory', async () => {
+test('rejects a manifest symlink that escapes the exact delegation directory', async (t) => {
   const hermesHome = await mkdtemp(path.join(tmpdir(), 'hermes-delegation-home-'));
   const foreignHome = await mkdtemp(path.join(tmpdir(), 'foreign-delegation-home-'));
   const registration = await createDelegation(hermesHome, 'deleg_cafebabe', [
@@ -299,7 +313,10 @@ test('rejects a manifest symlink that escapes the exact delegation directory', a
   ]);
   const directory = path.dirname(registration.transcriptPaths[0]);
   await rename(path.join(directory, 'manifest.json'), path.join(directory, 'manifest-owned.json'));
-  await symlink(path.join(path.dirname(foreign.transcriptPaths[0]), 'manifest.json'), path.join(directory, 'manifest.json'));
+  if (!(await trySymlink(path.join(path.dirname(foreign.transcriptPaths[0]), 'manifest.json'), path.join(directory, 'manifest.json')))) {
+    t.skip('symlinks are not permitted for this user (Windows needs Developer Mode)');
+    return;
+  }
 
   assert.deepEqual(await loadDelegationActivities(hermesHome, [registration]), []);
 });
