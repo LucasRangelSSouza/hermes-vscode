@@ -6,3 +6,6 @@ old/
 
 .vscode-test/
 out-test/
+
+docs/spikes/s0/mock.log
+docs/spikes/s0/mock.out
