@@ -16,6 +16,9 @@ import { buildRuntimeEnv } from './runtime/process';
 import { readActive } from './runtime/installer';
 import { redact } from './secrets/redactor';
 import { purgeTerminalSnapshots } from './runtime/terminalSnapshots';
+import {
+  RemoteSessionPublisher, pairDevice, pairedDevice, unpairDevice,
+} from './remoteControl';
 import { RuntimeService } from './runtimeService';
 import type { ResolvedRuntime } from './runtimeService';
 import { ProviderService } from './providerService';
@@ -383,6 +386,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
+  const remotePublisher = new RemoteSessionPublisher(
+    context,
+    session,
+    logLine,
+    text => panel.requestRemotePrompt(text),
+  );
+  context.subscriptions.push(remotePublisher);
+
+  async function attachRemoteIfPaired(): Promise<void> {
+    const device = await pairedDevice(context);
+    if (!device) return;
+    const externalSessionId = context.workspaceState.get<string>('hermesRangelTech.externalSessionId')
+      ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await context.workspaceState.update('hermesRangelTech.externalSessionId', externalSessionId);
+    await remotePublisher.attach({
+      externalSessionId,
+      workspacePath: resolveWorkingDirectory(),
+      providerName: providerService.store.active()?.name,
+      modelName: providerService.store.active()?.model,
+    });
+    logLine(`[remote] published as device "${device.name}"`);
+  }
+
   // Commands
   context.subscriptions.push(
     vscode.commands.registerCommand('hermesRangelTech.openChat', async () => {
@@ -503,6 +529,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void vscode.window.showInformationMessage(text, { modal: true });
     }),
     vscode.commands.registerCommand('hermesRangelTech.showLogs', () => outputChannel.show(true)),
+    vscode.commands.registerCommand('hermesRangelTech.remoteLogin', async () => {
+      const email = await vscode.window.showInputBox({ title: 'RIA Atendimento email', ignoreFocusOut: true });
+      if (!email) return;
+      const password = await vscode.window.showInputBox({
+        title: 'RIA Atendimento password', password: true, ignoreFocusOut: true,
+      });
+      if (!password) return;
+      try {
+        const device = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Notification, title: 'Hermes: signing in to RIA Atendimento' },
+          () => pairDevice(context, email, password),
+        );
+        logLine(`[remote] paired as device "${device.name}" (${device.id})`);
+        void vscode.window.showInformationMessage(`Hermes: signed in as "${device.name}" in RIA Atendimento.`);
+        await attachRemoteIfPaired();
+      } catch (err) {
+        logLine(`[remote] pairing failed: ${err}`);
+        void vscode.window.showErrorMessage(`Hermes: sign-in failed — ${err instanceof Error ? err.message : err}`);
+      }
+    }),
+    vscode.commands.registerCommand('hermesRangelTech.remoteLogout', async () => {
+      await unpairDevice(context);
+      remotePublisher.detach();
+      logLine('[remote] signed out');
+      void vscode.window.showInformationMessage('Hermes: signed out of RIA Atendimento.');
+    }),
   );
 
   // Status bar
@@ -613,6 +665,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         () => {
           logLine('[acp] connected');
           setStatus('connected');
+          void attachRemoteIfPaired();
         },
       );
     } catch (err) {

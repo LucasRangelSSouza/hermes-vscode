@@ -129,6 +129,14 @@
       {
         "command": "hermesRangelTech.showLogs",
         "title": "Hermes: Show Logs"
+      },
+      {
+        "command": "hermesRangelTech.remoteLogin",
+        "title": "Hermes: Sign In to RIA Atendimento (Remote Control)"
+      },
+      {
+        "command": "hermesRangelTech.remoteLogout",
+        "title": "Hermes: Sign Out of RIA Atendimento"
       }
     ],
     "viewsContainers": {
@@ -261,6 +269,18 @@
           "default": true,
           "scope": "machine-overridable",
           "description": "Sync the skills repository just before Hermes starts (with a 20 second limit)."
+        },
+        "hermesRangelTech.remote.baseUrl": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Base URL of the Agent LLM (RIA Atendimento) backend for Hermes remote control. Empty disables remote control entirely."
+        },
+        "hermesRangelTech.remote.deviceName": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Friendly name shown for this computer in the RIA Hermes agente view. Empty uses the computer's hostname."
         }
       }
     }

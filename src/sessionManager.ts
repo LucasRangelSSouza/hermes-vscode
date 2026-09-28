@@ -48,7 +48,10 @@ interface PromptTurn {
 
 export class SessionManager {
   private sessionId: string | null = null;
-  private updateHandler: SessionUpdateHandler | null = null;
+  /** Broadcast to every registered observer — the webview and, when paired,
+   * the Hermes remote-control publisher (docs in `remoteControl.ts`) both
+   * listen independently. */
+  private readonly updateHandlers: SessionUpdateHandler[] = [];
 
   /** Accumulated streaming text per ACP session (used for resend dedup). */
   private readonly accumulatedBySession = new Map<string, string>();
@@ -99,7 +102,7 @@ export class SessionManager {
   }
 
   onUpdate(handler: SessionUpdateHandler): void {
-    this.updateHandler = handler;
+    this.updateHandlers.push(handler);
   }
 
   /** Set a stored ACP session ID for resume attempts. */
@@ -232,8 +235,8 @@ export class SessionManager {
 
     // Emit initial model from session/new response
     const model = result.models?.currentModelId;
-    if (model && this.updateHandler) {
-      this.updateHandler({ session_id: this.sessionId, model });
+    if (model) {
+      this.emit({ session_id: this.sessionId, model });
     }
 
     return this.sessionId;
@@ -282,7 +285,7 @@ export class SessionManager {
       // PromptResponse usage is cumulative turn billing, not current context
       // pressure. Context metrics arrive authoritatively via usage_update.
       this.log(`[session] prompt done ${sessionId}`);
-      this.updateHandler?.({ session_id: sessionId, done: true });
+      this.emit({ session_id: sessionId, done: true });
     } finally {
       if (turn.sessionId) this.accumulatedBySession.delete(turn.sessionId);
       if (this.activePromptTurn === turn) this.activePromptTurn = null;
@@ -335,7 +338,7 @@ export class SessionManager {
   }
 
   private handleUpdate(params: Record<string, unknown>): void {
-    if (!this.updateHandler) return;
+    if (this.updateHandlers.length === 0) return;
 
     const session_id = params.sessionId as string;
     const update = params.update as Record<string, unknown> | undefined;
@@ -496,6 +499,10 @@ export class SessionManager {
       this.accumulatedBySession.delete(session_id);
     }
 
-    this.updateHandler(event);
+    this.emit(event);
+  }
+
+  private emit(event: SessionUpdateEvent): void {
+    for (const handler of this.updateHandlers) handler(event);
   }
 }

@@ -318,6 +318,14 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
     await this.handleFromWebview({ type: 'newSession' });
   }
 
+  /** Injects a remote-control instruction (RIA Atendimento) exactly like a
+   * message typed locally: it queues if the panel is busy, runs otherwise,
+   * and shows up in the local chat too, so the person in front of this VS
+   * Code sees what the remote session asked for. */
+  async requestRemotePrompt(text: string): Promise<void> {
+    await this.handleFromWebview({ type: 'send', text });
+  }
+
   async requestHermesRestart(): Promise<boolean> {
     await this.handleFromWebview({ type: 'restartHermes' });
     return !this.busy;
