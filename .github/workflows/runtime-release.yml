@@ -1,0 +1,222 @@
+name: Runtime release
+
+# Builds Hermes's sealed core payload on native runners, splits it into packs (each under
+# GitHub's 2 GB asset limit), verifies the packs end to end by extracting them into a path with
+# spaces and non-ASCII characters with the network cut, then publishes them to a GitHub Release
+# together with a per-platform manifest. See docs/DEVELOPMENT_SPEC.md sections 6.1 to 6.7.
+
+on:
+  workflow_dispatch:
+    inputs:
+      hermes_ref:
+        description: Hermes tag (or full commit SHA) to build
+        required: true
+        default: 'v0.21.4+canary.20260928T071354Z'
+      runtime_id:
+        description: Runtime id used in the release tag and file names (short, no spaces)
+        required: true
+        default: 'hrt-20260928'
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Create release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or reuse the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="runtime-${{ inputs.runtime_id }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag exists"
+          else
+            gh release create "$tag" --prerelease --target "${{ github.sha }}" \
+              --title "Hermes runtime ${{ inputs.runtime_id }}" \
+              --notes "Sealed Hermes runtime packs for Hermes by Rangel Tech. Hermes ref: ${{ inputs.hermes_ref }}. Not meant to be downloaded by hand; the extension fetches these through its embedded manifest."
+          fi
+
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32-x64
+            exe: .exe
+          - os: ubuntu-latest
+            platform: linux-x64
+            exe: ''
+    defaults:
+      run:
+        shell: bash
+    env:
+      PAYLOAD: ${{ github.workspace }}/out/payload
+      PACKS: ${{ github.workspace }}/out/packs
+      RID: ${{ inputs.runtime_id }}
+      PLATFORM: ${{ matrix.platform }}
+      EXE: ${{ matrix.exe }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out Hermes at the requested ref
+        uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: ${{ inputs.hermes_ref }}
+          path: hermes-agent
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.7.0
+
+      - name: Match Hermes's pinned npm
+        run: npm install -g npm@12.0.2
+
+      - name: Record inputs
+        run: |
+          cd hermes-agent
+          echo "HERMES_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "commit: $(git rev-parse HEAD)"
+
+      - name: Build the sealed core payload
+        working-directory: hermes-agent
+        run: |
+          mkdir -p ../out
+          python -S -B scripts/bundles/native_build.py --source "$PWD" \
+            --work "${{ github.workspace }}/out/work" --cache "${{ github.workspace }}/out/cache" \
+            --out "$PAYLOAD" --ref HEAD
+
+      - name: Write runtime.json
+        run: |
+          python - <<'PY'
+          import json, os
+          p = os.environ['PAYLOAD']
+          exe = os.environ['EXE']
+          osname, arch = os.environ['PLATFORM'].split('-')
+          doc = {
+            'schema': 1,
+            'id': os.environ['RID'],
+            'hermes': {'ref': '${{ inputs.hermes_ref }}', 'commit': os.environ['HERMES_COMMIT']},
+            'platform': osname, 'arch': arch,
+            'acpProtocolVersion': 1,
+            'entry': {'exe': 'bin/hermes-acp' + exe, 'args': []},
+            'cli': {'exe': 'bin/hermes' + exe},
+          }
+          json.dump(doc, open(os.path.join(p, 'runtime.json'), 'w'), indent=2)
+          print(json.dumps(doc, indent=2))
+          PY
+
+      - name: Split into packs
+        run: |
+          mkdir -p "$PACKS"
+          cd "$PAYLOAD"
+          declare -A PACK_GLOBS=(
+            [browser]="tools/chromium-* tools/agent-browser-*"
+            [media]="tools/ffmpeg-*"
+            [computer-use]="tools/cua-driver-*"
+            [llm-cpu]="tools/llamacpp-cpu-*"
+            [llm-cuda]="tools/llamacpp-cuda-*"
+            [llm-hip]="tools/llamacpp-hip-*"
+            [llm-vulkan]="tools/llamacpp-vulkan-*"
+            [cli-tools]="tools/gh-* tools/bws-*"
+            [offline-cache]="uv-cache"
+          )
+          excludes=()
+          manifest_packs=()
+          for name in browser media computer-use llm-cpu llm-cuda llm-hip llm-vulkan cli-tools offline-cache; do
+            members=()
+            for g in ${PACK_GLOBS[$name]}; do for m in $g; do [ -e "$m" ] && members+=("$m"); done; done
+            [ ${#members[@]} -eq 0 ] && { echo "pack $name: no members on this platform, skipped"; continue; }
+            f="hermes-runtime-$PLATFORM-$name-$RID.tar.gz"
+            tar -czf "$PACKS/$f" "${members[@]}"
+            for m in "${members[@]}"; do excludes+=(--exclude="./$m"); done
+            echo "pack $name: ${#members[@]} members -> $f"
+          done
+          f="hermes-runtime-$PLATFORM-core-$RID.tar.gz"
+          tar -czf "$PACKS/$f" "${excludes[@]}" .
+          ls -l "$PACKS" | awk '{printf "%10.1f MB  %s\n", $5/1048576, $9}'
+          # every asset must stay under 1.9 GiB
+          for f in "$PACKS"/*.tar.gz; do
+            sz=$(stat -c %s "$f" 2>/dev/null || stat -f %z "$f")
+            [ "$sz" -lt 2040109465 ] || { echo "::error::$f is $sz bytes, over the asset limit"; exit 1; }
+          done
+
+      - name: Write manifest
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, glob
+          packs_dir = os.environ['PACKS']; rid = os.environ['RID']; plat = os.environ['PLATFORM']
+          tag = f'runtime-{rid}'
+          repo = os.environ['GH_REPO']
+          required = {'core'}
+          out = []
+          for f in sorted(glob.glob(os.path.join(packs_dir, '*.tar.gz'))):
+              name = os.path.basename(f).split(plat + '-')[1].rsplit('-' + rid, 1)[0]
+              h = hashlib.sha256()
+              with open(f, 'rb') as fh:
+                  for chunk in iter(lambda: fh.read(1 << 20), b''):
+                      h.update(chunk)
+              out.append({
+                'name': name, 'file': os.path.basename(f), 'bytes': os.path.getsize(f),
+                'sha256': h.hexdigest(), 'required': name in required,
+                'url': f'https://github.com/{repo}/releases/download/{tag}/{os.path.basename(f)}',
+              })
+          manifest = {'schema': 1, 'id': rid, 'platform': plat,
+                      'hermes': {'ref': '${{ inputs.hermes_ref }}', 'commit': os.environ['HERMES_COMMIT']},
+                      'packs': out}
+          json.dump(manifest, open(os.path.join(packs_dir, f'manifest-{plat}.json'), 'w'), indent=2)
+          print(json.dumps(manifest, indent=2))
+          PY
+
+      - name: Verify the packs end to end (extract elsewhere, network cut)
+        env:
+          HTTP_PROXY: http://127.0.0.1:9
+          HTTPS_PROXY: http://127.0.0.1:9
+          ALL_PROXY: http://127.0.0.1:9
+          NO_PROXY: 127.0.0.1,localhost
+          HERMES_RT_KEY: sk-VERIFY-PACKS-LONGKEY-0001
+          SHOW_STDERR: '1'
+        run: |
+          dest="${{ github.workspace }}/out/mov ção teste/rt"
+          mkdir -p "$dest"
+          for f in "$PACKS"/*.tar.gz; do tar -xzf "$f" -C "$dest"; done
+          rm -rf "$PAYLOAD"
+          export HERMES_HOME="${{ github.workspace }}/out/user home"; mkdir -p "$HERMES_HOME"
+          ACP="$dest/bin/hermes-acp$EXE"; HERMES="$dest/bin/hermes$EXE"
+          "$ACP" --version; "$ACP" --check
+          "$HERMES" config set model.provider custom
+          "$HERMES" config set model.base_url http://127.0.0.1:8899/v1
+          "$HERMES" config set model.default mock-model
+          "$HERMES" config set model.api_key '${HERMES_RT_KEY}'
+          cd docs/spikes/s0
+          rm -f mock.log
+          node mock-openai.js > mock.out 2>&1 &
+          sleep 1
+          export HERMES_ACP_EXE="$ACP" ACP_CWD="$PWD"
+          node acp-client.js "say hello" | tee "$PACKS/rt1.txt"
+          node acp-client.js "RUNTOOL please" | tee "$PACKS/rt2.txt"
+          grep -q "Hello from the mock" "$PACKS/rt1.txt"
+          grep -q "hello-from-bash" "$PACKS/rt2.txt"
+          ! grep -q "Bearer no-key-required" <(grep chat/completions mock.log) || { echo "key not delivered"; exit 1; }
+          rm -f "$PACKS/rt1.txt" "$PACKS/rt2.txt"
+
+      - name: Upload to the release
+        run: |
+          tag="runtime-$RID"
+          gh release upload "$tag" "$PACKS"/* --clobber
+          gh release view "$tag" --json assets --jq '.assets[]|[.name,.size]|@tsv'
