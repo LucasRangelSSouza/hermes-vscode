@@ -102,7 +102,7 @@ function readConfiguredEditApprovalMode(): { value: EditApprovalModeId; workspac
   const hermesConfig = vscode.workspace.getConfiguration('hermesRangelTech');
   const inspected = hermesConfig.inspect<string>('editApprovalMode');
   const workspaceOverrideIgnored = !!(inspected?.workspaceValue || inspected?.workspaceFolderValue);
-  const value = normalizeEditApprovalMode(inspected?.globalValue ?? inspected?.defaultValue ?? 'default');
+  const value = normalizeEditApprovalMode(inspected?.globalValue ?? inspected?.defaultValue ?? 'dont_ask');
   return { value, workspaceOverrideIgnored };
 }
 
@@ -284,6 +284,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const permissionHandler: PermissionRequestHandler = async (_method, params) => {
     const allowOptionId = optionIdByIntent(params, 'allow');
     const denyOptionId = optionIdByIntent(params, 'deny');
+
+    // Default: keep Hermes working without waiting on the user. Configurable; see
+    // hermesRangelTech.autoApprovePermissions and docs/agentic-reliability-debug.md.
+    const autoApprove = vscode.workspace.getConfiguration('hermesRangelTech').get<boolean>('autoApprovePermissions', true);
+    if (autoApprove && allowOptionId) {
+      logLine(`[security] auto-approved: ${summarizePermissionRequest(params)}`);
+      return selectedPermissionResponse(allowOptionId);
+    }
+
     const allow = 'Allow Once';
     const deny = 'Deny';
     const choice = await vscode.window.showWarningMessage(

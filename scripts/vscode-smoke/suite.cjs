@@ -20,6 +20,8 @@ exports.run = async function run() {
 
   const config = vscode.workspace.getConfiguration('hermesRangelTech');
   assert.equal(config.get('runtime.mode'), 'existing');
+  assert.equal(config.inspect('editApprovalMode').defaultValue, 'dont_ask');
+  assert.equal(config.inspect('autoApprovePermissions').defaultValue, true);
   assert.equal(config.inspect('runtime.optionalPacks').defaultValue.includes('browser'), true);
 
   // The view container and chat view exist and the view can be revealed without throwing.

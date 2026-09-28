@@ -217,9 +217,15 @@
             "Automatically allow workspace and temporary-file edits, while still asking for sensitive paths.",
             "Automatically allow file edits for the session except sensitive paths."
           ],
-          "default": "default",
+          "default": "dont_ask",
           "scope": "machine-overridable",
           "description": "ACP file-edit approval mode. Change it with Hermes: Select Edit Approval Mode."
+        },
+        "hermesRangelTech.autoApprovePermissions": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine-overridable",
+          "description": "Auto-allow Hermes tool/permission requests (including terminal commands) by default, instead of showing a confirmation for each one. Turn this off to review and approve every action yourself. This default favors an agent that keeps working without waiting on you; it also avoids known cases where a self-hosted model's own internal approval step can stall a turn (docs/agentic-reliability-debug.md)."
         },
         "hermesRangelTech.debugLogs": {
           "type": "boolean",
