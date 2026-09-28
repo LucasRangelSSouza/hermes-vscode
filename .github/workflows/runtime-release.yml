@@ -195,6 +195,12 @@ jobs:
           print(json.dumps(manifest, indent=2))
           PY
 
+      - name: Upload to the release (before verifying, so a failed check never discards the build)
+        run: |
+          tag="runtime-$RID"
+          gh release upload "$tag" "$PACKS"/* --clobber
+          gh release view "$tag" --json assets --jq '.assets[]|[.name,.size]|@tsv'
+
       - name: Verify the packs end to end (extract elsewhere, network cut)
         env:
           HTTP_PROXY: http://127.0.0.1:9
@@ -206,7 +212,10 @@ jobs:
         run: |
           dest="${{ github.workspace }}/out/mov ção teste/rt"
           mkdir -p "$dest"
-          for f in "$PACKS"/*.tar.gz; do tar --force-local -xzf "$f" -C "$dest"; done
+          ws="$PWD"
+          cd "$dest"
+          for f in "$PACKS"/*.tar.gz; do tar --force-local -xzf "$f"; done
+          cd "$ws"
           rm -rf "$PAYLOAD"
           export HERMES_HOME="${{ github.workspace }}/out/user home"; mkdir -p "$HERMES_HOME"
           ACP="$dest/bin/hermes-acp$EXE"; HERMES="$dest/bin/hermes$EXE"
@@ -226,9 +235,3 @@ jobs:
           grep -q "hello-from-bash" "$PACKS/rt2.txt"
           ! grep -q "Bearer no-key-required" <(grep chat/completions mock.log) || { echo "key not delivered"; exit 1; }
           rm -f "$PACKS/rt1.txt" "$PACKS/rt2.txt"
-
-      - name: Upload to the release
-        run: |
-          tag="runtime-$RID"
-          gh release upload "$tag" "$PACKS"/* --clobber
-          gh release view "$tag" --json assets --jq '.assets[]|[.name,.size]|@tsv'

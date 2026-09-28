@@ -1,0 +1,102 @@
+name: Runtime verify
+
+# Downloads the packs of a published runtime exactly as a client would, extracts them into a folder
+# with spaces and non-ASCII characters, cuts the network, and runs the smoke test. Safe to re-run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runtime_id:
+        description: Runtime id, for example hrt-20260928
+        required: true
+      platform:
+        description: Platform to verify
+        required: true
+        type: choice
+        options:
+          - win32-x64
+          - linux-x64
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (${{ inputs.platform }})
+    runs-on: ${{ inputs.platform == 'win32-x64' && 'windows-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      RID: ${{ inputs.runtime_id }}
+      PLATFORM: ${{ inputs.platform }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download the packs
+        run: |
+          mkdir -p out/packs
+          gh release download "runtime-$RID" -p "hermes-runtime-$PLATFORM-*" -D out/packs
+          ls -l out/packs | awk '{printf "%10.1f MB  %s\n", $5/1048576, $9}'
+
+      - name: Check every pack against the manifest
+        run: |
+          gh release download "runtime-$RID" -p "manifest-$PLATFORM.json" -D out
+          node -e "
+            const fs=require('fs'),crypto=require('crypto');
+            const m=JSON.parse(fs.readFileSync('out/manifest-$PLATFORM.json','utf8'));
+            let bad=0;
+            for(const p of m.packs){
+              const f='out/packs/'+p.file;
+              if(!fs.existsSync(f)){console.log('MISSING',p.file);bad++;continue}
+              const h=crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+              const ok=h===p.sha256&&fs.statSync(f).size===p.bytes;
+              console.log(ok?'ok  ':'BAD ',p.name);if(!ok)bad++;
+            }
+            process.exit(bad?1:0)"
+
+      - name: Extract into a path with spaces and non-ASCII characters
+        run: |
+          dest="${{ github.workspace }}/out/mov ção teste/rt"
+          mkdir -p "$dest"
+          ws="$PWD"
+          cd "$dest"
+          for f in "$ws"/out/packs/hermes-runtime-*.tar.gz; do tar --force-local -xzf "$f"; done
+          cd "$ws"
+          echo "RT=$dest" >> "$GITHUB_ENV"
+          ls "$dest"
+
+      - name: Smoke test with the network cut
+        env:
+          HTTP_PROXY: http://127.0.0.1:9
+          HTTPS_PROXY: http://127.0.0.1:9
+          ALL_PROXY: http://127.0.0.1:9
+          NO_PROXY: 127.0.0.1,localhost
+          HERMES_RT_KEY: sk-VERIFY-PACKS-LONGKEY-0001
+          SHOW_STDERR: '1'
+        run: |
+          exe=""; [ "$PLATFORM" = "win32-x64" ] && exe=".exe"
+          export HERMES_HOME="${{ github.workspace }}/out/user home"; mkdir -p "$HERMES_HOME"
+          ACP="$RT/bin/hermes-acp$exe"; HERMES="$RT/bin/hermes$exe"
+          "$ACP" --version; "$ACP" --check
+          "$HERMES" config set model.provider custom
+          "$HERMES" config set model.base_url http://127.0.0.1:8899/v1
+          "$HERMES" config set model.default mock-model
+          "$HERMES" config set model.api_key '${HERMES_RT_KEY}'
+          cd docs/spikes/s0
+          rm -f mock.log
+          node mock-openai.js > mock.out 2>&1 &
+          sleep 1
+          export HERMES_ACP_EXE="$ACP" ACP_CWD="$PWD"
+          node acp-client.js "say hello" | tee ../../../out/rt1.txt
+          node acp-client.js "RUNTOOL please" | tee ../../../out/rt2.txt
+          grep -q "Hello from the mock" ../../../out/rt1.txt
+          grep -q "hello-from-bash" ../../../out/rt2.txt
+          ! grep -q "Bearer no-key-required" <(grep chat/completions mock.log) || { echo "key not delivered"; exit 1; }
