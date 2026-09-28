@@ -15,6 +15,7 @@ import { activeHermesHome, setActiveHermesHome } from './paths/hermesHome';
 import { buildRuntimeEnv } from './runtime/process';
 import { readActive } from './runtime/installer';
 import { redact } from './secrets/redactor';
+import { purgeTerminalSnapshots } from './runtime/terminalSnapshots';
 import { RuntimeService } from './runtimeService';
 import type { ResolvedRuntime } from './runtimeService';
 import { ProviderService } from './providerService';
@@ -223,6 +224,7 @@ function optionIdByIntent(params: unknown, intent: 'allow' | 'deny'): string | n
 }
 
 let client: AcpClient | null = null;
+let currentHermesHome: string | null = null;
 let outputChannel: vscode.OutputChannel;
 
 function logLine(line: string): void {
@@ -568,6 +570,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void vscode.window.showErrorMessage(`Hermes: ${err instanceof Error ? err.message : err}`);
         return;
       }
+      currentHermesHome = resolved.hermesHome;
+      purgeTerminalSnapshots(resolved.hermesHome);
       client.setLaunchArgs(resolved.entryArgs);
       await skillsService.prepareForLaunch(resolved);
     } else {
@@ -621,4 +625,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 export function deactivate(): void {
   client?.stop();
+  if (currentHermesHome) {
+    try { purgeTerminalSnapshots(currentHermesHome); } catch { /* best effort */ }
+  }
 }

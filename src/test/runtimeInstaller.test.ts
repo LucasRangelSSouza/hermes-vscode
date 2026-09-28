@@ -7,9 +7,10 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import test from 'node:test';
 import * as tar from 'tar';
+import * as zlib from 'node:zlib';
 import { dataPaths } from '../paths/hermesHome';
 import {
-  DownloadError, IntegrityError, InstallLockedError, STRICT_POLICY, acquireInstallLock, installRuntime, readActive,
+  DownloadError, IntegrityError, InstallLockedError, STRICT_POLICY, acquireInstallLock, extractPack, installRuntime, readActive,
 } from '../runtime/installer';
 import type { UrlPolicy } from '../runtime/installer';
 import type { PackEntry, PlatformRuntime } from '../runtime/manifest';
@@ -232,4 +233,53 @@ test('extraction cannot write outside the runtime folder', async () => {
     assert.ok(!fs.existsSync(path.join(f.paths.runtime, 'escaped.txt')));
     assert.ok(!fs.existsSync(path.join(f.paths.root, 'escaped.txt')));
   } finally { await f.close(); }
+});
+
+/** A tar written by hand so it can hold a symlink even where the test user may not create one. */
+function tarWithAbsoluteSymlink(): Buffer {
+  const header = (fields: ConstructorParameters<typeof tar.Header>[0]): Buffer => {
+    const block = Buffer.alloc(512);
+    new tar.Header(fields).encode(block, 0);
+    return block;
+  };
+  const content = Buffer.from('hello');
+  const padded = Buffer.concat([content, Buffer.alloc(512 - content.length)]);
+  const blocks = [
+    header({ path: 'etc/mtab', type: 'SymbolicLink', linkpath: '/proc/mounts', mode: 0o777, size: 0, mtime: new Date(0) }),
+    header({ path: 'bin/hermes', type: 'File', mode: 0o755, size: content.length, mtime: new Date(0) }),
+    padded,
+    Buffer.alloc(1024),
+  ];
+  return zlib.gzipSync(Buffer.concat(blocks));
+}
+
+test('a symlink with an absolute target is skipped on Windows and does not fail the install', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hrt-sym-'));
+  try {
+    const archive = path.join(dir, 'pack.tar.gz');
+    fs.writeFileSync(archive, tarWithAbsoluteSymlink());
+    const dest = path.join(dir, 'out');
+    const skipped = await extractPack(archive, dest, 'win32');
+    assert.deepEqual(skipped, ['etc/mtab']);
+    assert.equal(fs.readFileSync(path.join(dest, 'bin', 'hermes'), 'utf8'), 'hello');
+    assert.ok(!fs.existsSync(path.join(dest, 'etc', 'mtab')));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('other platforms extract the same archive without treating the link as an error', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hrt-sym-'));
+  try {
+    const archive = path.join(dir, 'pack.tar.gz');
+    fs.writeFileSync(archive, tarWithAbsoluteSymlink());
+    const dest = path.join(dir, 'out');
+    let skipped: string[];
+    try {
+      skipped = await extractPack(archive, dest, 'linux');
+    } catch (err) {
+      if (process.platform === 'win32') { t.skip('this Windows user cannot create symlinks'); return; }
+      throw err;
+    }
+    assert.deepEqual(skipped, []);
+    assert.equal(fs.readFileSync(path.join(dest, 'bin', 'hermes'), 'utf8'), 'hello');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

@@ -1,0 +1,10 @@
+{"url":"/api/v1/models","auth":"Bearer sk-e2e-long-key-0123456789abcdef"}
+{"url":"/api/v1/models","auth":"Bearer sk-e2e-long-key-0123456789abcdef"}
+{"url":"/v1/models","auth":"Bearer sk-e2e-long-key-0123456789abcdef"}
+{"url":"/api/v1/models","auth":"Bearer sk-e2e-long-key-0123456789abcdef"}
+{"url":"/v1/models","auth":"Bearer sk-e2e-long-key-0123456789abcdef"}
+{"url":"/v1/chat/completions","auth":"Bearer sk-e2e-long-key-0123456789abcdef","stream":true,"model":"mock-model","nmsgs":2,"lastRole":"user","ntools":23,"hasTerminal":true}
+{"url":"/v1/chat/completions","auth":"Bearer sk-e2e-long-key-0123456789abcdef","model":"mock-model","nmsgs":2,"lastRole":"user","ntools":0,"hasTerminal":false}
+{"url":"/v1/chat/completions","auth":"Bearer sk-e2e-long-key-0123456789abcdef","stream":true,"model":"mock-model","nmsgs":4,"lastRole":"user","ntools":23,"hasTerminal":true}
+{"url":"/v1/chat/completions","auth":"Bearer sk-e2e-long-key-0123456789abcdef","stream":true,"model":"mock-model","nmsgs":6,"lastRole":"tool","ntools":23,"hasTerminal":true}
+{"url":"/v1/chat/completions","auth":"Bearer sk-e2e-long-key-0123456789abcdef","model":"mock-model","nmsgs":2,"lastRole":"user","ntools":0,"hasTerminal":false}

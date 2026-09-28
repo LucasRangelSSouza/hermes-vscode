@@ -225,9 +225,34 @@ async function ensureFreeSpace(dir: string, needed: number): Promise<void> {
   }
 }
 
-async function extractPack(archive: string, dest: string): Promise<void> {
+/**
+ * Extracts one pack. Symbolic links are skipped on Windows: creating them needs Developer Mode or
+ * elevation, and the ones in the runtime (such as PortableGit's etc/mtab) are POSIX conveniences that
+ * nothing depends on. Informational warnings are ignored; anything else is an error.
+ */
+export async function extractPack(archive: string, dest: string, platform: NodeJS.Platform = process.platform): Promise<string[]> {
   fs.mkdirSync(dest, { recursive: true });
-  await tar.x({ file: archive, cwd: dest, strict: true, preserveOwner: false });
+  const skipped: string[] = [];
+  const problems: string[] = [];
+  await tar.x({
+    file: archive,
+    cwd: dest,
+    preserveOwner: false,
+    filter: (entryPath, entry) => {
+      if (platform === 'win32' && (entry as { type?: string }).type === 'SymbolicLink') {
+        skipped.push(entryPath);
+        return false;
+      }
+      return true;
+    },
+    onwarn: (code: string, message: string) => {
+      if (code !== 'TAR_ENTRY_INFO') problems.push(`${code}: ${message}`);
+    },
+  });
+  if (problems.length > 0) {
+    throw new Error(`Extracting ${path.basename(archive)} failed: ${problems.slice(0, 3).join('; ')}`);
+  }
+  return skipped;
 }
 
 function collectGarbage(paths: DataPaths, keep: Set<string>): void {
