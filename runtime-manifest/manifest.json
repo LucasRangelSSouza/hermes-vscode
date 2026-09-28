@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "runtimes": {
+    "linux-x64": {
+      "id": "hrt-20260928",
+      "platform": "linux-x64",
+      "hermes": {
+        "ref": "v0.21.4+canary.20260928T071354Z",
+        "commit": "5912ed81ed945a784f67ca13c1096e2c122cd307"
+      },
+      "packs": [
+        {
+          "name": "browser",
+          "file": "hermes-runtime-linux-x64-browser-hrt-20260928.tar.gz",
+          "bytes": 165858894,
+          "sha256": "8c5c7759741f145a66df869d04c544c1484be6585bcc54677d2ae10a04112070",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-linux-x64-browser-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "cli-tools",
+          "file": "hermes-runtime-linux-x64-cli-tools-hrt-20260928.tar.gz",
+          "bytes": 20509536,
+          "sha256": "54f891de80c01f58013b381b1b16bb96660516d373890fe3b24820c58c474e4b",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-linux-x64-cli-tools-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "computer-use",
+          "file": "hermes-runtime-linux-x64-computer-use-hrt-20260928.tar.gz",
+          "bytes": 28812089,
+          "sha256": "874030b2934fe2d6578de65d6c8607f26bf27e4adf3ae8ea7f11f256e46a72de",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-linux-x64-computer-use-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "core",
+          "file": "hermes-runtime-linux-x64-core-hrt-20260928.tar.gz",
+          "bytes": 730142114,
+          "sha256": "849e7df7aa621d654d28b182510aa1710ac5301939bfbf56ec4f517f6ac7cb59",
+          "required": true,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-linux-x64-core-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "llm-cpu",
+          "file": "hermes-runtime-linux-x64-llm-cpu-hrt-20260928.tar.gz",
+          "bytes": 16825425,
+          "sha256": "8f202e98a0358cf19292d2487c9c1161cf34f14cefd96e90c11baa7e69100cca",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-linux-x64-llm-cpu-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "llm-hip",
+          "file": "hermes-runtime-linux-x64-llm-hip-hrt-20260928.tar.gz",
+          "bytes": 228212933,
+          "sha256": "a7fe6186116768e1129b63751d34b27fc3d6c56f55a12c49bc1e971538abe069",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-linux-x64-llm-hip-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "llm-vulkan",
+          "file": "hermes-runtime-linux-x64-llm-vulkan-hrt-20260928.tar.gz",
+          "bytes": 30169747,
+          "sha256": "42f12bb27e329b891d151e03f9eff179cfa2ba573b0825f560368df55d50f809",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-linux-x64-llm-vulkan-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "media",
+          "file": "hermes-runtime-linux-x64-media-hrt-20260928.tar.gz",
+          "bytes": 174698599,
+          "sha256": "ea9b46ac96961581710747eb604d1ed6b35b2d6babda560d2a45fbc8cf3fbeff",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-linux-x64-media-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "offline-cache",
+          "file": "hermes-runtime-linux-x64-offline-cache-hrt-20260928.tar.gz",
+          "bytes": 741912994,
+          "sha256": "fa5e9eea9584e158879b3f88d2aaa0c13370769d155360ba4053356778f363da",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-linux-x64-offline-cache-hrt-20260928.tar.gz"
+        }
+      ]
+    },
+    "win32-x64": {
+      "id": "hrt-20260928",
+      "platform": "win32-x64",
+      "hermes": {
+        "ref": "v0.21.4+canary.20260928T071354Z",
+        "commit": "5912ed81ed945a784f67ca13c1096e2c122cd307"
+      },
+      "packs": [
+        {
+          "name": "browser",
+          "file": "hermes-runtime-win32-x64-browser-hrt-20260928.tar.gz",
+          "bytes": 186089533,
+          "sha256": "035f3a4cd32fe3b83f1432adaa7cfe2c33c6eaef52d36bcfb33c79f4e7f72417",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-browser-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "cli-tools",
+          "file": "hermes-runtime-win32-x64-cli-tools-hrt-20260928.tar.gz",
+          "bytes": 20467457,
+          "sha256": "3eb211a2565b9625e7f5adca95d5570ce2b8a754fd8c3d4c27cb0416bfa6b059",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-cli-tools-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "computer-use",
+          "file": "hermes-runtime-win32-x64-computer-use-hrt-20260928.tar.gz",
+          "bytes": 26462508,
+          "sha256": "dad28cb4d88393b8f82b01f9da5fa92bf1f10056d0dd0ae371cad1dbf32efa35",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-computer-use-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "core",
+          "file": "hermes-runtime-win32-x64-core-hrt-20260928.tar.gz",
+          "bytes": 698625365,
+          "sha256": "7d6a6b19fab8f77a05ee008a5163e86a736eae9a83794d7925eba0ab3b5031f4",
+          "required": true,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-core-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "llm-cpu",
+          "file": "hermes-runtime-win32-x64-llm-cpu-hrt-20260928.tar.gz",
+          "bytes": 18953085,
+          "sha256": "682966737e95b2ecc845b5bb1bae4685122f8db42ec5b2672b743ed192819bbe",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-llm-cpu-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "llm-cuda",
+          "file": "hermes-runtime-win32-x64-llm-cuda-hrt-20260928.tar.gz",
+          "bytes": 541525051,
+          "sha256": "9b9dad13897d60dbac5b9ba222492b41bddca60d567ca0b3309b9bd9aabcd4c7",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-llm-cuda-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "llm-hip",
+          "file": "hermes-runtime-win32-x64-llm-hip-hrt-20260928.tar.gz",
+          "bytes": 260505170,
+          "sha256": "0b6b3af636584c92ca9348a430822bf58bf137bcfbed93b9589829bc6935a8fd",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-llm-hip-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "llm-vulkan",
+          "file": "hermes-runtime-win32-x64-llm-vulkan-hrt-20260928.tar.gz",
+          "bytes": 32473367,
+          "sha256": "4f53e435966bb69b9582771e94a5aced0ebecc286e4a27e778d0056cf39a2b43",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-llm-vulkan-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "media",
+          "file": "hermes-runtime-win32-x64-media-hrt-20260928.tar.gz",
+          "bytes": 169889098,
+          "sha256": "4631932acc62c01b1ecbf1b58badfd381afc0026d2fd85b1f53653d47320dfcd",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-media-hrt-20260928.tar.gz"
+        },
+        {
+          "name": "offline-cache",
+          "file": "hermes-runtime-win32-x64-offline-cache-hrt-20260928.tar.gz",
+          "bytes": 316898409,
+          "sha256": "dc9adedd9f53855dd5053068961e03f66215a1880090b10ca82f97fe04c7f694",
+          "required": false,
+          "url": "https://github.com/LucasRangelSSouza/hermes-vscode/releases/download/runtime-hrt-20260928/hermes-runtime-win32-x64-offline-cache-hrt-20260928.tar.gz"
+        }
+      ]
+    }
+  }
+}
