@@ -105,6 +105,36 @@ ${CSS_TEMPLATE}
       </div>
     </div>
   </div>
+  <div id="settings-overlay" style="display:none">
+    <div class="settings-card">
+      <div class="settings-header">
+        <span class="settings-title">Hermes settings</span>
+        <button id="settings-close" title="Close">✕</button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">LLM provider</div>
+        <label class="settings-label" for="settings-provider-name">Name</label>
+        <input class="settings-input" type="text" id="settings-provider-name" placeholder="My provider" />
+        <label class="settings-label" for="settings-provider-url">Base URL</label>
+        <input class="settings-input" type="text" id="settings-provider-url" placeholder="https://your-vm.example.com/v1" />
+        <label class="settings-label" for="settings-provider-model">Model</label>
+        <input class="settings-input" type="text" id="settings-provider-model" placeholder="qwen-abliterated" />
+        <label class="settings-label" for="settings-provider-key">API key <span id="settings-key-hint"></span></label>
+        <input class="settings-input" type="password" id="settings-provider-key" placeholder="Leave empty to keep the stored key" />
+        <div id="settings-test-result" class="settings-test-result" style="display:none"></div>
+        <div id="settings-error" class="settings-error" style="display:none"></div>
+        <div class="settings-btn-row">
+          <button id="settings-test-btn" type="button">Test connection</button>
+          <button id="settings-save-btn" type="button">Save</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">RIA Atendimento</div>
+        <div id="settings-remote-status" class="settings-remote-status"></div>
+        <button id="settings-remote-signout" type="button" style="display:none">Sign out</button>
+      </div>
+    </div>
+  </div>
   <div id="remote-connected-banner" style="display:none">
     <span class="remote-connected-dot"></span>
     <span id="remote-connected-text"></span>
@@ -119,6 +149,8 @@ ${CSS_TEMPLATE}
       <button id="model-btn-header" title="Switch model">${escapeHtml(modelLabel)} ▾</button>
       <span class="brand-sep">·</span>
       <button id="profile-btn-header" title="Switch Hermes profile"><span class="profile-dot"></span><span id="profile-label">Default</span> ▾</button>
+      <span class="bar-spacer"></span>
+      <button id="settings-btn-header" title="Hermes settings">⚙</button>
     </div>
     <div id="header-session">
       <button id="status-session" title="Sessions">new session</button>
@@ -585,6 +617,72 @@ const CSS_TEMPLATE = /* css */ `
       padding: 0; opacity: 0.8;
     }
     #remote-connected-signout:hover { opacity: 1; color: var(--vscode-foreground); }
+
+    /* ── Settings screen ──────────────────────────────── */
+    #settings-btn-header {
+      background: none; border: none; cursor: pointer;
+      color: var(--vscode-descriptionForeground); font-size: 1.05em; padding: 0 2px;
+    }
+    #settings-btn-header:hover { color: var(--gold); }
+    #settings-overlay {
+      position: fixed; inset: 0; z-index: 90;
+      background: var(--vscode-sideBar-background);
+      overflow-y: auto; padding: 12px 14px;
+      font-family: var(--ui-font);
+    }
+    .settings-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .settings-title { font-weight: 700; color: var(--gold); font-size: 0.95em; }
+    #settings-close {
+      background: none; border: none; color: var(--vscode-descriptionForeground);
+      cursor: pointer; font-size: 1em;
+    }
+    #settings-close:hover { color: var(--vscode-foreground); }
+    .settings-section {
+      border-top: 1px solid var(--vscode-sideBarSectionHeader-border);
+      padding: 10px 0;
+    }
+    .settings-section:first-of-type { border-top: none; }
+    .settings-section-title {
+      font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--vscode-descriptionForeground); margin-bottom: 6px;
+    }
+    .settings-label { display: block; font-size: 0.78em; color: var(--vscode-descriptionForeground); margin-top: 6px; }
+    #settings-key-hint { opacity: 0.7; font-style: italic; }
+    .settings-input {
+      width: 100%; background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+      border-radius: 4px; padding: 6px 8px; font-size: 0.88em; font-family: inherit;
+      margin-top: 2px;
+    }
+    .settings-input:focus { outline: 1px solid var(--gold-dim); outline-offset: -1px; }
+    .settings-btn-row { display: flex; gap: 8px; margin-top: 10px; }
+    #settings-test-btn, #settings-save-btn, #settings-remote-signout {
+      flex: 1; padding: 6px 10px; border-radius: 4px; font-size: 0.85em; cursor: pointer;
+      font-family: inherit;
+    }
+    #settings-test-btn {
+      background: none; border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, #555));
+      color: var(--vscode-foreground);
+    }
+    #settings-test-btn:hover { border-color: var(--gold-dim); }
+    #settings-save-btn {
+      background: var(--gold); border: none; color: #1a1400; font-weight: 600;
+    }
+    #settings-save-btn:hover { background: #ffd766; }
+    #settings-test-btn:disabled, #settings-save-btn:disabled { opacity: 0.6; cursor: default; }
+    .settings-test-result { font-size: 0.8em; margin-top: 8px; line-height: 1.4; white-space: pre-wrap; }
+    .settings-test-result.ok { color: #3fb950; }
+    .settings-test-result.fail { color: var(--vscode-errorForeground); }
+    .settings-error { color: var(--vscode-errorForeground); font-size: 0.8em; margin-top: 6px; }
+    .settings-remote-status { font-size: 0.85em; color: var(--vscode-descriptionForeground); margin-bottom: 6px; }
+    #settings-remote-signout {
+      background: none; border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, #555));
+      color: var(--vscode-foreground); flex: none;
+    }
+    #settings-remote-signout:hover { border-color: var(--gold-dim); }
 
     /* ── Empty state ──────────────────────────────── */
     #empty-state {

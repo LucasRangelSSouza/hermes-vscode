@@ -22,6 +22,9 @@ import {
 import { RuntimeService } from './runtimeService';
 import type { ResolvedRuntime } from './runtimeService';
 import { ProviderService } from './providerService';
+import { testConnection, summarize as summarizeConnectionTest } from './providers/connectionTest';
+import { DEFAULT_TIMEOUT_SECONDS, newProfileId } from './providers/profile';
+import type { ProviderProfile } from './providers/profile';
 import { SkillsService } from './skillsService';
 import {
   EDIT_APPROVAL_MODES,
@@ -417,6 +420,42 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await unpairDevice(context);
       remotePublisher.detach();
       await updateRemotePairedContext();
+    },
+  });
+
+  panel.setProviderSettingsController({
+    current: () => {
+      const active = providerService.store.active();
+      return active
+        ? { name: active.name, baseUrl: active.baseUrl, model: active.model, hasKey: true }
+        : undefined;
+    },
+    save: async (input) => {
+      const active = providerService.store.active();
+      const profile: ProviderProfile = {
+        id: active?.id ?? newProfileId(input.name),
+        name: input.name,
+        baseUrl: input.baseUrl,
+        model: input.model,
+        timeoutSeconds: active?.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
+        allowInsecureHttp: input.allowInsecureHttp,
+      };
+      await providerService.store.save(profile, input.apiKey);
+      await providerService.store.setActive(profile.id);
+    },
+    test: async (input) => {
+      const active = providerService.store.active();
+      const draft: ProviderProfile = {
+        id: active?.id ?? 'draft',
+        name: input.name,
+        baseUrl: input.baseUrl,
+        model: input.model,
+        timeoutSeconds: active?.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
+        allowInsecureHttp: input.allowInsecureHttp,
+      };
+      const apiKey = input.apiKey ?? (active ? await providerService.store.apiKey(active.id) : undefined);
+      const result = await testConnection(draft, apiKey);
+      return { ok: result.ok, summary: summarizeConnectionTest(result) };
     },
   });
 

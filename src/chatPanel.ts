@@ -62,6 +62,26 @@ export interface RemoteAuthController {
   logout(): Promise<void>;
 }
 
+export interface ProviderSettingsInput {
+  name: string;
+  baseUrl: string;
+  model: string;
+  apiKey?: string;
+  allowInsecureHttp?: boolean;
+}
+
+/** Backs the embedded settings screen (gear icon, SPEC_HERMES_INTEGRADO_RIA_ATENDIMENTO.md
+ * seção 7.5) — the same profile store and connection test the Command
+ * Palette wizard already uses, just driven by the webview instead of
+ * sequential showInputBox prompts. Set via `setProviderSettingsController`
+ * for the same reason RemoteAuthController is: the extension wires it
+ * after its own provider service exists, not at panel construction. */
+export interface ProviderSettingsController {
+  current(): { name: string; baseUrl: string; model: string; hasKey: boolean } | undefined;
+  save(input: ProviderSettingsInput): Promise<void>;
+  test(input: ProviderSettingsInput): Promise<{ ok: boolean; summary: string }>;
+}
+
 export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   public static readonly viewId = 'hermesRangelTech.chatView';
 
@@ -96,6 +116,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
   private toolCallLocations = new Map<string, { kind: string; paths: string[] }>();
   private readonly mediaRoot: string;
   private remoteAuth?: RemoteAuthController;
+  private providerSettings?: ProviderSettingsController;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -359,6 +380,29 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
     return this.postRemoteAuthState();
   }
 
+  setProviderSettingsController(controller: ProviderSettingsController): void {
+    this.providerSettings = controller;
+  }
+
+  private postSettingsState(opts: {
+    busy?: boolean; error?: string; testOk?: boolean; testSummary?: string; saved?: boolean;
+  } = {}): void {
+    if (!this.providerSettings) return;
+    const current = this.providerSettings.current();
+    this.post({
+      type: 'settingsState',
+      settingsProviderName: current?.name ?? '',
+      settingsProviderBaseUrl: current?.baseUrl ?? '',
+      settingsProviderModel: current?.model ?? '',
+      settingsProviderHasKey: current?.hasKey ?? false,
+      settingsBusy: opts.busy ?? false,
+      settingsError: opts.error,
+      settingsTestOk: opts.testOk,
+      settingsTestSummary: opts.testSummary,
+      settingsSaved: opts.saved,
+    });
+  }
+
   /** Pushes the login-screen state to the webview. A no-op until
    * setRemoteAuthController has run, and a no-op in its own right when
    * remote control isn't configured (remote.baseUrl empty) — the overlay
@@ -615,6 +659,47 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
       if (!this.remoteAuth) return;
       await this.remoteAuth.logout();
       await this.postRemoteAuthState(false);
+
+    } else if (msg.type === 'settingsOpen') {
+      this.postSettingsState();
+
+    } else if (msg.type === 'settingsSaveProvider') {
+      if (!this.providerSettings) return;
+      const name = msg.providerName?.trim();
+      const baseUrl = msg.providerBaseUrl?.trim();
+      const model = msg.providerModel?.trim();
+      if (!name || !baseUrl || !model) {
+        this.postSettingsState({ error: 'Fill in name, base URL and model.' });
+        return;
+      }
+      this.postSettingsState({ busy: true });
+      try {
+        await this.providerSettings.save({
+          name, baseUrl, model,
+          apiKey: msg.providerApiKey || undefined,
+          allowInsecureHttp: msg.providerAllowInsecureHttp,
+        });
+        this.postSettingsState({ saved: true });
+      } catch (err) {
+        this.postSettingsState({ error: err instanceof Error ? err.message : String(err) });
+      }
+
+    } else if (msg.type === 'settingsTestProvider') {
+      if (!this.providerSettings) return;
+      const name = msg.providerName?.trim() || 'test';
+      const baseUrl = msg.providerBaseUrl?.trim() ?? '';
+      const model = msg.providerModel?.trim() ?? '';
+      this.postSettingsState({ busy: true });
+      try {
+        const result = await this.providerSettings.test({
+          name, baseUrl, model,
+          apiKey: msg.providerApiKey || undefined,
+          allowInsecureHttp: msg.providerAllowInsecureHttp,
+        });
+        this.postSettingsState({ testOk: result.ok, testSummary: result.summary });
+      } catch (err) {
+        this.postSettingsState({ error: err instanceof Error ? err.message : String(err) });
+      }
 
     } else if (msg.type === 'send' && msg.text) {
       this.log(`[ui] send (${msg.text.length} chars)`);

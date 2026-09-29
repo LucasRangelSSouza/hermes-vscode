@@ -101,7 +101,7 @@ export interface ToWebview {
   type:
     | 'append' | 'backgroundNotification' | 'thinking' | 'toolCall' | 'done'
     | 'error' | 'status' | 'notice' | 'clear' | 'busy' | 'queueState'
-    | 'statusBar' | 'sessionList' | 'loadHistory' | 'profileList' | 'remoteAuthState';
+    | 'statusBar' | 'sessionList' | 'loadHistory' | 'profileList' | 'remoteAuthState' | 'settingsState';
   text?: string;
   toolName?: string;
   toolStatus?: string;
@@ -148,6 +148,18 @@ export interface ToWebview {
   remoteDeviceName?: string;
   remoteBusy?: boolean;
   remoteError?: string;
+  // Settings screen (SPEC_HERMES_INTEGRADO_RIA_ATENDIMENTO.md seção 7.5) —
+  // the gear icon in the panel header. Provider fields never carry the
+  // stored API key back to the webview, only whether one is set.
+  settingsProviderName?: string;
+  settingsProviderBaseUrl?: string;
+  settingsProviderModel?: string;
+  settingsProviderHasKey?: boolean;
+  settingsBusy?: boolean;
+  settingsError?: string;
+  settingsTestOk?: boolean;
+  settingsTestSummary?: string;
+  settingsSaved?: boolean;
 }
 
 export interface FromWebview {
@@ -157,7 +169,8 @@ export interface FromWebview {
     | 'attachFile' | 'pasteImage' | 'dropFiles' | 'clearAttachments'
     | 'toggleSkill' | 'renameSession' | 'deleteSession'
     | 'selectProfile' | 'customProfile' | 'restartHermes' | 'requestCommands'
-    | 'remoteLogin' | 'remoteLogout';
+    | 'remoteLogin' | 'remoteLogout'
+    | 'settingsOpen' | 'settingsSaveProvider' | 'settingsTestProvider';
   text?: string;
   requestId?: string;
   sessionId?: string;
@@ -165,6 +178,11 @@ export interface FromWebview {
   data?: string;
   ext?: string;
   uris?: string[];
+  providerName?: string;
+  providerBaseUrl?: string;
+  providerModel?: string;
+  providerApiKey?: string;
+  providerAllowInsecureHttp?: boolean;
 }
 
 // ── Attachment ───────────────────────────────────────

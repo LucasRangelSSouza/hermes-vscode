@@ -85,6 +85,22 @@ const remoteConnectedSignout = document.getElementById('remote-connected-signout
 // dismiss ("Continuar sem remote control") only lasts until the next one,
 // which is fine -- it only re-fires on state changes, not on a timer.
 let remoteLoginDismissed = false;
+let lastRemoteAuthState: { remoteConfigured?: boolean; remotePaired?: boolean; remoteDeviceName?: string } = {};
+
+const settingsBtnHeader    = document.getElementById('settings-btn-header') as HTMLButtonElement;
+const settingsOverlay      = document.getElementById('settings-overlay') as HTMLDivElement;
+const settingsClose        = document.getElementById('settings-close') as HTMLButtonElement;
+const settingsNameInput    = document.getElementById('settings-provider-name') as HTMLInputElement;
+const settingsUrlInput     = document.getElementById('settings-provider-url') as HTMLInputElement;
+const settingsModelInput   = document.getElementById('settings-provider-model') as HTMLInputElement;
+const settingsKeyInput     = document.getElementById('settings-provider-key') as HTMLInputElement;
+const settingsKeyHint      = document.getElementById('settings-key-hint') as HTMLSpanElement;
+const settingsTestBtn      = document.getElementById('settings-test-btn') as HTMLButtonElement;
+const settingsSaveBtn      = document.getElementById('settings-save-btn') as HTMLButtonElement;
+const settingsTestResult   = document.getElementById('settings-test-result') as HTMLDivElement;
+const settingsError        = document.getElementById('settings-error') as HTMLDivElement;
+const settingsRemoteStatus = document.getElementById('settings-remote-status') as HTMLDivElement;
+const settingsRemoteSignout = document.getElementById('settings-remote-signout') as HTMLButtonElement;
 const cmdArgInput      = document.getElementById('cmd-arg-input') as HTMLInputElement;
 const cmdArgLabel      = document.getElementById('cmd-arg-label') as HTMLElement;
 const agentActivityBar = document.getElementById('agent-activity-bar') as HTMLDivElement;
@@ -475,6 +491,48 @@ remoteConnectedSignout.addEventListener('click', () => {
   vscode.postMessage({ type: 'remoteLogout' } as any);
 });
 
+// ── Settings screen (gear icon) ────────────────────────
+function renderSettingsRemoteSection(): void {
+  if (lastRemoteAuthState.remotePaired) {
+    settingsRemoteStatus.textContent = `Connected as "${lastRemoteAuthState.remoteDeviceName ?? ''}"`;
+    settingsRemoteSignout.style.display = 'block';
+  } else if (lastRemoteAuthState.remoteConfigured) {
+    settingsRemoteStatus.textContent = 'Not signed in.';
+    settingsRemoteSignout.style.display = 'none';
+  } else {
+    settingsRemoteStatus.textContent = 'Not configured (hermesRangelTech.remote.baseUrl is empty).';
+    settingsRemoteSignout.style.display = 'none';
+  }
+}
+settingsBtnHeader.addEventListener('click', () => {
+  settingsError.style.display = 'none';
+  settingsTestResult.style.display = 'none';
+  renderSettingsRemoteSection();
+  settingsOverlay.style.display = 'block';
+  vscode.postMessage({ type: 'settingsOpen' } as any);
+});
+settingsClose.addEventListener('click', () => { settingsOverlay.style.display = 'none'; });
+settingsRemoteSignout.addEventListener('click', () => { vscode.postMessage({ type: 'remoteLogout' } as any); });
+function settingsDraft() {
+  return {
+    providerName: settingsNameInput.value.trim(),
+    providerBaseUrl: settingsUrlInput.value.trim(),
+    providerModel: settingsModelInput.value.trim(),
+    providerApiKey: settingsKeyInput.value || undefined,
+  };
+}
+settingsTestBtn.addEventListener('click', () => {
+  settingsError.style.display = 'none';
+  settingsTestResult.style.display = 'none';
+  settingsTestBtn.disabled = true; settingsSaveBtn.disabled = true;
+  vscode.postMessage({ type: 'settingsTestProvider', ...settingsDraft() } as any);
+});
+settingsSaveBtn.addEventListener('click', () => {
+  settingsError.style.display = 'none';
+  settingsTestBtn.disabled = true; settingsSaveBtn.disabled = true;
+  vscode.postMessage({ type: 'settingsSaveProvider', ...settingsDraft() } as any);
+});
+
 // ── Message handler ──────────────────────────────────
 window.addEventListener('message', (e: MessageEvent) => {
   const msg = e.data as ToWebview;
@@ -733,6 +791,10 @@ window.addEventListener('message', (e: MessageEvent) => {
       break;
 
     case 'remoteAuthState': {
+      lastRemoteAuthState = {
+        remoteConfigured: msg.remoteConfigured, remotePaired: msg.remotePaired, remoteDeviceName: msg.remoteDeviceName,
+      };
+      if (settingsOverlay.style.display !== 'none') renderSettingsRemoteSection();
       if (!msg.remoteBusy) {
         remoteLoginSubmit.disabled = false;
         remoteLoginSubmit.textContent = 'Entrar no RIA Atendimento';
@@ -750,6 +812,32 @@ window.addEventListener('message', (e: MessageEvent) => {
         remoteConnectedBanner.style.display = 'none';
         const shouldShow = Boolean(msg.remoteConfigured) && !remoteLoginDismissed;
         remoteLoginOverlay.style.display = shouldShow ? 'flex' : 'none';
+      }
+      break;
+    }
+
+    case 'settingsState': {
+      settingsTestBtn.disabled = false; settingsSaveBtn.disabled = false;
+      // Only overwrite the fields the person hasn't started typing into --
+      // a save/test round trip must not clobber an in-progress edit.
+      if (document.activeElement !== settingsNameInput) settingsNameInput.value = msg.settingsProviderName ?? '';
+      if (document.activeElement !== settingsUrlInput) settingsUrlInput.value = msg.settingsProviderBaseUrl ?? '';
+      if (document.activeElement !== settingsModelInput) settingsModelInput.value = msg.settingsProviderModel ?? '';
+      settingsKeyHint.textContent = msg.settingsProviderHasKey ? '(a key is already stored)' : '(none stored yet)';
+      if (msg.settingsError) {
+        settingsError.textContent = msg.settingsError;
+        settingsError.style.display = 'block';
+      }
+      if (msg.settingsTestSummary) {
+        settingsTestResult.textContent = msg.settingsTestSummary;
+        settingsTestResult.className = `settings-test-result ${msg.settingsTestOk ? 'ok' : 'fail'}`;
+        settingsTestResult.style.display = 'block';
+      }
+      if (msg.settingsSaved) {
+        settingsKeyInput.value = '';
+        settingsTestResult.textContent = 'Saved.';
+        settingsTestResult.className = 'settings-test-result ok';
+        settingsTestResult.style.display = 'block';
       }
       break;
     }
