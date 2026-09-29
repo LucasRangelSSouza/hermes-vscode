@@ -2,7 +2,7 @@
   "name": "hermes-by-rangel-tech",
   "displayName": "Hermes by Rangel Tech",
   "description": "A community VS Code integration for Hermes Agent with a managed portable runtime, provider setup and synchronized skills. Not affiliated with Nous Research.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "lucasrangel",
   "author": {
     "name": "Rangel Tech",
