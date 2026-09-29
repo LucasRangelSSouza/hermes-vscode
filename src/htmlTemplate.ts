@@ -87,6 +87,29 @@ ${CSS_TEMPLATE}
   </style>
 </head>
 <body>
+  <div id="remote-login-overlay" style="display:none">
+    <div class="remote-login-card">
+      <div class="remote-login-logo"><img src="${logoUri}" alt=""/></div>
+      <div class="remote-login-title">Hermes by Rangel Tech</div>
+      <div class="remote-login-subtitle">Entre com sua conta do RIA Atendimento para aparecer e ser controlado remotamente em <strong>Hermes agente</strong>.</div>
+      <form id="remote-login-form">
+        <label class="remote-login-label" for="remote-login-email">E-mail</label>
+        <input class="remote-login-input" type="email" id="remote-login-email" autocomplete="username" required />
+        <label class="remote-login-label" for="remote-login-password">Senha</label>
+        <input class="remote-login-input" type="password" id="remote-login-password" autocomplete="current-password" required />
+        <div id="remote-login-error" class="remote-login-error" style="display:none"></div>
+        <button type="submit" id="remote-login-submit">Entrar no RIA Atendimento</button>
+      </form>
+      <div class="remote-login-skip">
+        <button id="remote-login-skip" type="button">Continuar sem remote control</button>
+      </div>
+    </div>
+  </div>
+  <div id="remote-connected-banner" style="display:none">
+    <span class="remote-connected-dot"></span>
+    <span id="remote-connected-text"></span>
+    <button id="remote-connected-signout" title="Sign out of RIA Atendimento">Sair</button>
+  </div>
   <div id="header">
     <div id="header-brand">
       <span class="brand-icon">☤</span>
@@ -488,6 +511,80 @@ const CSS_TEMPLATE = /* css */ `
     }
     /* Prevent horizontal overflow */
     #messages { overflow-x: hidden; }
+
+    /* ── Remote control login (RIA Atendimento) ───────── */
+    #remote-login-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--vscode-sideBar-background);
+      padding: 24px 16px;
+      overflow-y: auto;
+    }
+    .remote-login-card {
+      width: 100%; max-width: 300px;
+      display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+      font-family: var(--ui-font);
+    }
+    .remote-login-logo { align-self: center; width: 48px; height: 48px; margin-bottom: 4px; }
+    .remote-login-logo img { width: 100%; height: 100%; object-fit: contain; }
+    .remote-login-title {
+      align-self: center; font-weight: 700; font-size: 1.05em;
+      color: var(--gold); letter-spacing: 0.02em;
+    }
+    .remote-login-subtitle {
+      align-self: center; text-align: center; font-size: 0.85em; line-height: 1.5;
+      color: var(--vscode-descriptionForeground); margin-bottom: 8px; max-width: 260px;
+    }
+    .remote-login-subtitle strong { color: var(--vscode-foreground); font-weight: 600; }
+    #remote-login-form { display: flex; flex-direction: column; gap: 4px; }
+    .remote-login-label {
+      font-size: 0.78em; color: var(--vscode-descriptionForeground);
+      margin-top: 6px;
+    }
+    .remote-login-input {
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+      border-radius: 4px; padding: 6px 8px; font-size: 0.9em;
+      font-family: inherit;
+    }
+    .remote-login-input:focus { outline: 1px solid var(--gold-dim); outline-offset: -1px; }
+    .remote-login-error {
+      color: var(--vscode-errorForeground); font-size: 0.8em; line-height: 1.4;
+      margin-top: 4px;
+    }
+    #remote-login-submit {
+      margin-top: 12px; padding: 7px 12px; border: none; border-radius: 4px;
+      background: var(--gold); color: #1a1400; font-weight: 600; font-size: 0.88em;
+      cursor: pointer; font-family: inherit;
+    }
+    #remote-login-submit:hover { background: #ffd766; }
+    #remote-login-submit:disabled { opacity: 0.6; cursor: default; }
+    .remote-login-skip { align-self: center; margin-top: 6px; }
+    #remote-login-skip {
+      background: none; border: none; color: var(--vscode-descriptionForeground);
+      font-size: 0.78em; text-decoration: underline; cursor: pointer; font-family: inherit;
+      opacity: 0.75;
+    }
+    #remote-login-skip:hover { opacity: 1; color: var(--vscode-foreground); }
+
+    #remote-connected-banner {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px; font-size: 0.78em; flex-shrink: 0;
+      font-family: var(--ui-font); color: var(--vscode-descriptionForeground);
+      background: var(--vscode-sideBarSectionHeader-background, rgba(128,128,128,0.06));
+      border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+    }
+    .remote-connected-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: #3fb950; flex-shrink: 0;
+    }
+    #remote-connected-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #remote-connected-signout {
+      background: none; border: none; color: var(--vscode-descriptionForeground);
+      cursor: pointer; font-size: 0.95em; text-decoration: underline; font-family: inherit;
+      padding: 0; opacity: 0.8;
+    }
+    #remote-connected-signout:hover { opacity: 1; color: var(--vscode-foreground); }
 
     /* ── Empty state ──────────────────────────────── */
     #empty-state {

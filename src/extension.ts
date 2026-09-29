@@ -395,8 +395,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   context.subscriptions.push(remotePublisher);
 
+  /** Drives the gear-bar login/logout icon swap (view/title menu `when`
+   * clauses in package.json key off this) — set on activation and on every
+   * sign-in/sign-out so the toolbar always reflects the real pairing state. */
+  async function updateRemotePairedContext(): Promise<void> {
+    const device = await pairedDevice(context);
+    await vscode.commands.executeCommand('setContext', 'hermesRangelTech.remotePaired', Boolean(device));
+    await panel.refreshRemoteAuthState();
+  }
+
+  panel.setRemoteAuthController({
+    isConfigured: () => Boolean((vscode.workspace.getConfiguration('hermesRangelTech').get<string>('remote.baseUrl') || '').trim()),
+    currentDevice: () => pairedDevice(context),
+    login: async (email, password) => {
+      const device = await pairDevice(context, email, password);
+      await updateRemotePairedContext();
+      await attachRemoteIfPaired();
+      return device;
+    },
+    logout: async () => {
+      await unpairDevice(context);
+      remotePublisher.detach();
+      await updateRemotePairedContext();
+    },
+  });
+
   async function attachRemoteIfPaired(): Promise<void> {
     const device = await pairedDevice(context);
+    await updateRemotePairedContext();
     if (!device) return;
     const externalSessionId = context.workspaceState.get<string>('hermesRangelTech.externalSessionId')
       ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -409,6 +435,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     logLine(`[remote] published as device "${device.name}"`);
   }
+  void updateRemotePairedContext();
 
   // Commands
   context.subscriptions.push(
@@ -553,6 +580,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('hermesRangelTech.remoteLogout', async () => {
       await unpairDevice(context);
       remotePublisher.detach();
+      await updateRemotePairedContext();
       logLine('[remote] signed out');
       void vscode.window.showInformationMessage('Hermes: signed out of RIA Atendimento.');
     }),

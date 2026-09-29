@@ -71,6 +71,20 @@ const backgroundProcessStatus = document.getElementById('background-process-stat
 const skillsBtn        = document.getElementById('skills-btn') as HTMLButtonElement;
 const skillsMenu       = document.getElementById('skills-menu') as HTMLDivElement;
 const cmdArgPopover    = document.getElementById('cmd-arg-popover') as HTMLDivElement;
+const remoteLoginOverlay   = document.getElementById('remote-login-overlay') as HTMLDivElement;
+const remoteLoginForm      = document.getElementById('remote-login-form') as HTMLFormElement;
+const remoteLoginEmail     = document.getElementById('remote-login-email') as HTMLInputElement;
+const remoteLoginPassword  = document.getElementById('remote-login-password') as HTMLInputElement;
+const remoteLoginSubmit    = document.getElementById('remote-login-submit') as HTMLButtonElement;
+const remoteLoginError     = document.getElementById('remote-login-error') as HTMLDivElement;
+const remoteLoginSkip      = document.getElementById('remote-login-skip') as HTMLButtonElement;
+const remoteConnectedBanner  = document.getElementById('remote-connected-banner') as HTMLDivElement;
+const remoteConnectedText    = document.getElementById('remote-connected-text') as HTMLSpanElement;
+const remoteConnectedSignout = document.getElementById('remote-connected-signout') as HTMLButtonElement;
+// The login screen re-renders every remoteAuthState message; a manual
+// dismiss ("Continuar sem remote control") only lasts until the next one,
+// which is fine -- it only re-fires on state changes, not on a timer.
+let remoteLoginDismissed = false;
 const cmdArgInput      = document.getElementById('cmd-arg-input') as HTMLInputElement;
 const cmdArgLabel      = document.getElementById('cmd-arg-label') as HTMLElement;
 const agentActivityBar = document.getElementById('agent-activity-bar') as HTMLDivElement;
@@ -442,6 +456,25 @@ document.addEventListener('click', closeFn);
 window.addEventListener('resize', () => requestAnimationFrame(syncComposerHeight));
 requestAnimationFrame(syncComposerHeight);
 
+// ── Remote control (RIA Atendimento) login ────────────
+remoteLoginForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const email = remoteLoginEmail.value.trim();
+  const password = remoteLoginPassword.value;
+  if (!email || !password) return;
+  remoteLoginError.style.display = 'none';
+  remoteLoginSubmit.disabled = true;
+  remoteLoginSubmit.textContent = 'Entrando…';
+  vscode.postMessage({ type: 'remoteLogin', text: email, data: password } as any);
+});
+remoteLoginSkip.addEventListener('click', () => {
+  remoteLoginDismissed = true;
+  remoteLoginOverlay.style.display = 'none';
+});
+remoteConnectedSignout.addEventListener('click', () => {
+  vscode.postMessage({ type: 'remoteLogout' } as any);
+});
+
 // ── Message handler ──────────────────────────────────
 window.addEventListener('message', (e: MessageEvent) => {
   const msg = e.data as ToWebview;
@@ -698,6 +731,28 @@ window.addEventListener('message', (e: MessageEvent) => {
     case 'loadHistory':
       loadHistory(messagesEl, msg.history ?? [], msg.switched ?? false);
       break;
+
+    case 'remoteAuthState': {
+      if (!msg.remoteBusy) {
+        remoteLoginSubmit.disabled = false;
+        remoteLoginSubmit.textContent = 'Entrar no RIA Atendimento';
+      }
+      if (msg.remoteError) {
+        remoteLoginError.textContent = msg.remoteError;
+        remoteLoginError.style.display = 'block';
+      }
+      if (msg.remotePaired) {
+        remoteLoginOverlay.style.display = 'none';
+        remoteLoginPassword.value = '';
+        remoteConnectedBanner.style.display = 'flex';
+        remoteConnectedText.textContent = `Hermes agente: conectado como "${msg.remoteDeviceName ?? ''}"`;
+      } else {
+        remoteConnectedBanner.style.display = 'none';
+        const shouldShow = Boolean(msg.remoteConfigured) && !remoteLoginDismissed;
+        remoteLoginOverlay.style.display = shouldShow ? 'flex' : 'none';
+      }
+      break;
+    }
   }
 });
 

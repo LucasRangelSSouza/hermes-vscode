@@ -88,7 +88,8 @@
       },
       {
         "command": "hermesRangelTech.configureProvider",
-        "title": "Hermes: Configure Provider"
+        "title": "Hermes: Configure Provider",
+        "icon": "$(gear)"
       },
       {
         "command": "hermesRangelTech.testConnection",
@@ -132,13 +133,34 @@
       },
       {
         "command": "hermesRangelTech.remoteLogin",
-        "title": "Hermes: Sign In to RIA Atendimento (Remote Control)"
+        "title": "Hermes: Sign In to RIA Atendimento (Remote Control)",
+        "icon": "$(sign-in)"
       },
       {
         "command": "hermesRangelTech.remoteLogout",
-        "title": "Hermes: Sign Out of RIA Atendimento"
+        "title": "Hermes: Sign Out of RIA Atendimento",
+        "icon": "$(sign-out)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "hermesRangelTech.configureProvider",
+          "when": "view == hermesRangelTech.chatView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "hermesRangelTech.remoteLogin",
+          "when": "view == hermesRangelTech.chatView && !hermesRangelTech.remotePaired",
+          "group": "navigation@1"
+        },
+        {
+          "command": "hermesRangelTech.remoteLogout",
+          "when": "view == hermesRangelTech.chatView && hermesRangelTech.remotePaired",
+          "group": "navigation@1"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {

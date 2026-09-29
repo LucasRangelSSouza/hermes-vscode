@@ -101,7 +101,7 @@ export interface ToWebview {
   type:
     | 'append' | 'backgroundNotification' | 'thinking' | 'toolCall' | 'done'
     | 'error' | 'status' | 'notice' | 'clear' | 'busy' | 'queueState'
-    | 'statusBar' | 'sessionList' | 'loadHistory' | 'profileList';
+    | 'statusBar' | 'sessionList' | 'loadHistory' | 'profileList' | 'remoteAuthState';
   text?: string;
   toolName?: string;
   toolStatus?: string;
@@ -140,6 +140,14 @@ export interface ToWebview {
   restartRequired?: boolean;
   availableCommands?: AvailableSlashCommand[];
   agentActivities?: AgentActivity[];
+  // Remote control (RIA Atendimento) — SPEC_HERMES_INTEGRADO_RIA_ATENDIMENTO.md
+  // seção 7.2: só rendered quando hermesRangelTech.remote.baseUrl está
+  // configurado; a maioria dos usuários nunca vê isso.
+  remoteConfigured?: boolean;
+  remotePaired?: boolean;
+  remoteDeviceName?: string;
+  remoteBusy?: boolean;
+  remoteError?: string;
 }
 
 export interface FromWebview {
@@ -148,7 +156,8 @@ export interface FromWebview {
     | 'newSession' | 'switchSession'
     | 'attachFile' | 'pasteImage' | 'dropFiles' | 'clearAttachments'
     | 'toggleSkill' | 'renameSession' | 'deleteSession'
-    | 'selectProfile' | 'customProfile' | 'restartHermes' | 'requestCommands';
+    | 'selectProfile' | 'customProfile' | 'restartHermes' | 'requestCommands'
+    | 'remoteLogin' | 'remoteLogout';
   text?: string;
   requestId?: string;
   sessionId?: string;

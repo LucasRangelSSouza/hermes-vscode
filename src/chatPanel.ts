@@ -51,6 +51,17 @@ export interface ProfileController {
   ensureConnected?(): Promise<void>;
 }
 
+/** Remote control (RIA Atendimento) login/logout, backing the native login
+ * screen (SPEC_HERMES_INTEGRADO_RIA_ATENDIMENTO.md seção 7.2). Set once via
+ * `setRemoteAuthController` — the extension wires this after its own
+ * pairing/session-publishing plumbing exists, not at panel construction. */
+export interface RemoteAuthController {
+  isConfigured(): boolean;
+  currentDevice(): Promise<{ name: string } | undefined>;
+  login(email: string, password: string): Promise<{ name: string }>;
+  logout(): Promise<void>;
+}
+
 export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   public static readonly viewId = 'hermesRangelTech.chatView';
 
@@ -84,6 +95,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
   private attachedFiles: { name: string; path: string }[] = [];
   private toolCallLocations = new Map<string, { kind: string; paths: string[] }>();
   private readonly mediaRoot: string;
+  private remoteAuth?: RemoteAuthController;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -333,6 +345,38 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
     return !this.busy && this.messageQueue.length === 0;
   }
 
+  /** Wired from extension.ts once pairing/session-publishing exist (not at
+   * construction — see RemoteAuthController's own doc comment). */
+  setRemoteAuthController(controller: RemoteAuthController): void {
+    this.remoteAuth = controller;
+    void this.postRemoteAuthState();
+  }
+
+  /** Re-reads pairing state and re-renders the login screen — called by
+   * extension.ts wherever it already refreshes the gear-bar icon context,
+   * so the webview form and the command-palette/icon flow never disagree. */
+  refreshRemoteAuthState(): Promise<void> {
+    return this.postRemoteAuthState();
+  }
+
+  /** Pushes the login-screen state to the webview. A no-op until
+   * setRemoteAuthController has run, and a no-op in its own right when
+   * remote control isn't configured (remote.baseUrl empty) — the overlay
+   * never renders for the vast majority of installs that never touch it. */
+  private async postRemoteAuthState(busy = false, error?: string): Promise<void> {
+    if (!this.remoteAuth) return;
+    const configured = this.remoteAuth.isConfigured();
+    const device = configured ? await this.remoteAuth.currentDevice() : undefined;
+    this.post({
+      type: 'remoteAuthState',
+      remoteConfigured: configured,
+      remotePaired: Boolean(device),
+      remoteDeviceName: device?.name,
+      remoteBusy: busy,
+      remoteError: error,
+    });
+  }
+
   async requestHermesRestart(): Promise<boolean> {
     await this.handleFromWebview({ type: 'restartHermes' });
     return !this.busy;
@@ -548,8 +592,29 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
 
     if (msg.type === 'ready') {
       this.emitInitialState(true);
+      void this.postRemoteAuthState();
       await this.hydrateActiveRuntimeSession();
       this.postQueueState();
+
+    } else if (msg.type === 'remoteLogin') {
+      const email = msg.text?.trim();
+      const password = msg.data;
+      if (!this.remoteAuth || !email || !password) return;
+      await this.postRemoteAuthState(true);
+      try {
+        const device = await this.remoteAuth.login(email, password);
+        this.log(`[remote] signed in as "${device.name}"`);
+        await this.postRemoteAuthState(false);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.log(`[remote] sign-in failed: ${message}`);
+        await this.postRemoteAuthState(false, message);
+      }
+
+    } else if (msg.type === 'remoteLogout') {
+      if (!this.remoteAuth) return;
+      await this.remoteAuth.logout();
+      await this.postRemoteAuthState(false);
 
     } else if (msg.type === 'send' && msg.text) {
       this.log(`[ui] send (${msg.text.length} chars)`);
