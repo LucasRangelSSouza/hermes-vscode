@@ -63,6 +63,10 @@ export interface RemoteAuthController {
 }
 
 export interface ProviderSettingsInput {
+  /** The profile being edited, or undefined for "+ New profile" — without
+   * this, Save always overwrote whichever profile happened to be active,
+   * so there was no real way to add a second one from the UI. */
+  id?: string;
   name: string;
   baseUrl: string;
   model: string;
@@ -76,10 +80,23 @@ export interface ProviderSettingsInput {
  * sequential showInputBox prompts. Set via `setProviderSettingsController`
  * for the same reason RemoteAuthController is: the extension wires it
  * after its own provider service exists, not at panel construction. */
+export interface ProviderSettingsSummary {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
 export interface ProviderSettingsController {
   current(): { name: string; baseUrl: string; model: string; hasKey: boolean } | undefined;
   save(input: ProviderSettingsInput): Promise<void>;
   test(input: ProviderSettingsInput): Promise<{ ok: boolean; summary: string }>;
+  /** All saved profiles, active one flagged — populates the profile picker
+   * (spec critério 5: adicionar, testar, selecionar modelo, definir padrão
+   * e remover provider pela UI, não só editar o único ativo). */
+  list(): ProviderSettingsSummary[];
+  /** Loads one saved profile's non-secret fields and makes it active. */
+  select(id: string): Promise<{ name: string; baseUrl: string; model: string; hasKey: boolean } | undefined>;
+  remove(id: string): Promise<void>;
 }
 
 export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -386,9 +403,10 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
 
   private postSettingsState(opts: {
     busy?: boolean; error?: string; testOk?: boolean; testSummary?: string; saved?: boolean;
+    removed?: boolean; fields?: { name: string; baseUrl: string; model: string; hasKey: boolean };
   } = {}): void {
     if (!this.providerSettings) return;
-    const current = this.providerSettings.current();
+    const current = opts.fields ?? this.providerSettings.current();
     this.post({
       type: 'settingsState',
       settingsProviderName: current?.name ?? '',
@@ -400,6 +418,8 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
       settingsTestOk: opts.testOk,
       settingsTestSummary: opts.testSummary,
       settingsSaved: opts.saved,
+      settingsRemoved: opts.removed,
+      settingsProfiles: this.providerSettings.list(),
     });
   }
 
@@ -675,11 +695,32 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
       this.postSettingsState({ busy: true });
       try {
         await this.providerSettings.save({
+          id: msg.providerId || undefined,
           name, baseUrl, model,
           apiKey: msg.providerApiKey || undefined,
           allowInsecureHttp: msg.providerAllowInsecureHttp,
         });
         this.postSettingsState({ saved: true });
+      } catch (err) {
+        this.postSettingsState({ error: err instanceof Error ? err.message : String(err) });
+      }
+
+    } else if (msg.type === 'settingsSelectProvider') {
+      if (!this.providerSettings || !msg.providerId) return;
+      this.postSettingsState({ busy: true });
+      try {
+        const fields = await this.providerSettings.select(msg.providerId);
+        this.postSettingsState({ fields });
+      } catch (err) {
+        this.postSettingsState({ error: err instanceof Error ? err.message : String(err) });
+      }
+
+    } else if (msg.type === 'settingsRemoveProvider') {
+      if (!this.providerSettings || !msg.providerId) return;
+      this.postSettingsState({ busy: true });
+      try {
+        await this.providerSettings.remove(msg.providerId);
+        this.postSettingsState({ removed: true, fields: this.providerSettings.current() });
       } catch (err) {
         this.postSettingsState({ error: err instanceof Error ? err.message : String(err) });
       }
@@ -692,6 +733,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider, vscode.Dis
       this.postSettingsState({ busy: true });
       try {
         const result = await this.providerSettings.test({
+          id: msg.providerId || undefined,
           name, baseUrl, model,
           apiKey: msg.providerApiKey || undefined,
           allowInsecureHttp: msg.providerAllowInsecureHttp,

@@ -113,6 +113,8 @@ ${CSS_TEMPLATE}
       </div>
       <div class="settings-section">
         <div class="settings-section-title">LLM provider</div>
+        <label class="settings-label" for="settings-provider-picker">Profile</label>
+        <select class="settings-input" id="settings-provider-picker"></select>
         <label class="settings-label" for="settings-provider-name">Name</label>
         <input class="settings-input" type="text" id="settings-provider-name" placeholder="My provider" />
         <label class="settings-label" for="settings-provider-url">Base URL</label>
@@ -126,6 +128,9 @@ ${CSS_TEMPLATE}
         <div class="settings-btn-row">
           <button id="settings-test-btn" type="button">Test connection</button>
           <button id="settings-save-btn" type="button">Save</button>
+        </div>
+        <div class="settings-btn-row">
+          <button id="settings-remove-btn" type="button" style="display:none">Remove this profile</button>
         </div>
       </div>
       <div class="settings-section">
@@ -683,6 +688,11 @@ const CSS_TEMPLATE = /* css */ `
       color: var(--vscode-foreground); flex: none;
     }
     #settings-remote-signout:hover { border-color: var(--gold-dim); }
+    #settings-remove-btn {
+      width: 100%; background: none; color: var(--vscode-errorForeground);
+      border: 1px solid var(--vscode-errorForeground); opacity: 0.75;
+    }
+    #settings-remove-btn:hover { opacity: 1; }
 
     /* ── Empty state ──────────────────────────────── */
     #empty-state {

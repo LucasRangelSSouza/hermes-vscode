@@ -160,6 +160,8 @@ export interface ToWebview {
   settingsTestOk?: boolean;
   settingsTestSummary?: string;
   settingsSaved?: boolean;
+  settingsProfiles?: Array<{ id: string; name: string; active: boolean }>;
+  settingsRemoved?: boolean;
 }
 
 export interface FromWebview {
@@ -170,7 +172,8 @@ export interface FromWebview {
     | 'toggleSkill' | 'renameSession' | 'deleteSession'
     | 'selectProfile' | 'customProfile' | 'restartHermes' | 'requestCommands'
     | 'remoteLogin' | 'remoteLogout'
-    | 'settingsOpen' | 'settingsSaveProvider' | 'settingsTestProvider';
+    | 'settingsOpen' | 'settingsSaveProvider' | 'settingsTestProvider'
+    | 'settingsSelectProvider' | 'settingsRemoveProvider';
   text?: string;
   requestId?: string;
   sessionId?: string;
@@ -183,6 +186,7 @@ export interface FromWebview {
   providerModel?: string;
   providerApiKey?: string;
   providerAllowInsecureHttp?: boolean;
+  providerId?: string;
 }
 
 // ── Attachment ───────────────────────────────────────

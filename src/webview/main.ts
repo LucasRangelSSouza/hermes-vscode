@@ -90,6 +90,7 @@ let lastRemoteAuthState: { remoteConfigured?: boolean; remotePaired?: boolean; r
 const settingsBtnHeader    = document.getElementById('settings-btn-header') as HTMLButtonElement;
 const settingsOverlay      = document.getElementById('settings-overlay') as HTMLDivElement;
 const settingsClose        = document.getElementById('settings-close') as HTMLButtonElement;
+const settingsPicker       = document.getElementById('settings-provider-picker') as HTMLSelectElement;
 const settingsNameInput    = document.getElementById('settings-provider-name') as HTMLInputElement;
 const settingsUrlInput     = document.getElementById('settings-provider-url') as HTMLInputElement;
 const settingsModelInput   = document.getElementById('settings-provider-model') as HTMLInputElement;
@@ -97,10 +98,15 @@ const settingsKeyInput     = document.getElementById('settings-provider-key') as
 const settingsKeyHint      = document.getElementById('settings-key-hint') as HTMLSpanElement;
 const settingsTestBtn      = document.getElementById('settings-test-btn') as HTMLButtonElement;
 const settingsSaveBtn      = document.getElementById('settings-save-btn') as HTMLButtonElement;
+const settingsRemoveBtn    = document.getElementById('settings-remove-btn') as HTMLButtonElement;
 const settingsTestResult   = document.getElementById('settings-test-result') as HTMLDivElement;
 const settingsError        = document.getElementById('settings-error') as HTMLDivElement;
 const settingsRemoteStatus = document.getElementById('settings-remote-status') as HTMLDivElement;
 const settingsRemoteSignout = document.getElementById('settings-remote-signout') as HTMLButtonElement;
+// Which saved profile the form currently represents -- '' means "+ New
+// profile", so Save creates a second profile instead of overwriting
+// whichever one happened to be active (see chatPanel.ts's ProviderSettingsInput doc).
+let settingsCurrentId = '';
 const cmdArgInput      = document.getElementById('cmd-arg-input') as HTMLInputElement;
 const cmdArgLabel      = document.getElementById('cmd-arg-label') as HTMLElement;
 const agentActivityBar = document.getElementById('agent-activity-bar') as HTMLDivElement;
@@ -515,12 +521,25 @@ settingsClose.addEventListener('click', () => { settingsOverlay.style.display = 
 settingsRemoteSignout.addEventListener('click', () => { vscode.postMessage({ type: 'remoteLogout' } as any); });
 function settingsDraft() {
   return {
+    providerId: settingsCurrentId || undefined,
     providerName: settingsNameInput.value.trim(),
     providerBaseUrl: settingsUrlInput.value.trim(),
     providerModel: settingsModelInput.value.trim(),
     providerApiKey: settingsKeyInput.value || undefined,
   };
 }
+function clearSettingsFormForNewProfile() {
+  settingsCurrentId = '';
+  settingsNameInput.value = ''; settingsUrlInput.value = ''; settingsModelInput.value = ''; settingsKeyInput.value = '';
+  settingsKeyHint.textContent = '';
+  settingsRemoveBtn.style.display = 'none';
+  settingsTestResult.style.display = 'none'; settingsError.style.display = 'none';
+}
+settingsPicker.addEventListener('change', () => {
+  if (!settingsPicker.value) { clearSettingsFormForNewProfile(); return; }
+  settingsTestBtn.disabled = true; settingsSaveBtn.disabled = true;
+  vscode.postMessage({ type: 'settingsSelectProvider', providerId: settingsPicker.value } as any);
+});
 settingsTestBtn.addEventListener('click', () => {
   settingsError.style.display = 'none';
   settingsTestResult.style.display = 'none';
@@ -531,6 +550,11 @@ settingsSaveBtn.addEventListener('click', () => {
   settingsError.style.display = 'none';
   settingsTestBtn.disabled = true; settingsSaveBtn.disabled = true;
   vscode.postMessage({ type: 'settingsSaveProvider', ...settingsDraft() } as any);
+});
+settingsRemoveBtn.addEventListener('click', () => {
+  if (!settingsCurrentId) return;
+  settingsTestBtn.disabled = true; settingsSaveBtn.disabled = true;
+  vscode.postMessage({ type: 'settingsRemoveProvider', providerId: settingsCurrentId } as any);
 });
 
 // ── Message handler ──────────────────────────────────
@@ -824,6 +848,26 @@ window.addEventListener('message', (e: MessageEvent) => {
       if (document.activeElement !== settingsUrlInput) settingsUrlInput.value = msg.settingsProviderBaseUrl ?? '';
       if (document.activeElement !== settingsModelInput) settingsModelInput.value = msg.settingsProviderModel ?? '';
       settingsKeyHint.textContent = msg.settingsProviderHasKey ? '(a key is already stored)' : '(none stored yet)';
+
+      const profiles = msg.settingsProfiles ?? [];
+      const activeProfile = profiles.find(p => p.active);
+      settingsCurrentId = activeProfile?.id ?? '';
+      settingsPicker.textContent = '';
+      for (const p of profiles) {
+        const opt = document.createElement('option');
+        opt.value = p.id; opt.textContent = p.name; opt.selected = p.id === settingsCurrentId;
+        settingsPicker.appendChild(opt);
+      }
+      const newOpt = document.createElement('option');
+      newOpt.value = ''; newOpt.textContent = '+ New profile'; newOpt.selected = !settingsCurrentId;
+      settingsPicker.appendChild(newOpt);
+      settingsRemoveBtn.style.display = settingsCurrentId ? 'block' : 'none';
+
+      if (msg.settingsRemoved) {
+        settingsTestResult.textContent = 'Profile removed.';
+        settingsTestResult.className = 'settings-test-result ok';
+        settingsTestResult.style.display = 'block';
+      }
       if (msg.settingsError) {
         settingsError.textContent = msg.settingsError;
         settingsError.style.display = 'block';

@@ -432,30 +432,47 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
     save: async (input) => {
       const active = providerService.store.active();
+      // input.id names the profile actually open in the form -- without it,
+      // Save always overwrote whichever profile happened to be active, so
+      // "+ New profile" could never really add a second one (found while
+      // wiring the multi-profile picker, spec critério 5).
+      const editing = input.id ? providerService.store.get(input.id) : undefined;
       const profile: ProviderProfile = {
-        id: active?.id ?? newProfileId(input.name),
+        id: editing?.id ?? newProfileId(input.name),
         name: input.name,
         baseUrl: input.baseUrl,
         model: input.model,
-        timeoutSeconds: active?.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
+        timeoutSeconds: editing?.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
         allowInsecureHttp: input.allowInsecureHttp,
       };
       await providerService.store.save(profile, input.apiKey);
       await providerService.store.setActive(profile.id);
     },
     test: async (input) => {
-      const active = providerService.store.active();
+      const editing = input.id ? providerService.store.get(input.id) : undefined;
       const draft: ProviderProfile = {
-        id: active?.id ?? 'draft',
+        id: editing?.id ?? 'draft',
         name: input.name,
         baseUrl: input.baseUrl,
         model: input.model,
-        timeoutSeconds: active?.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
+        timeoutSeconds: editing?.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
         allowInsecureHttp: input.allowInsecureHttp,
       };
-      const apiKey = input.apiKey ?? (active ? await providerService.store.apiKey(active.id) : undefined);
+      const apiKey = input.apiKey ?? (editing ? await providerService.store.apiKey(editing.id) : undefined);
       const result = await testConnection(draft, apiKey);
       return { ok: result.ok, summary: summarizeConnectionTest(result) };
+    },
+    list: () => {
+      const activeId = providerService.store.activeId();
+      return providerService.store.list().map(p => ({ id: p.id, name: p.name, active: p.id === activeId }));
+    },
+    select: async (id) => {
+      await providerService.store.setActive(id);
+      const profile = providerService.store.get(id);
+      return profile ? { name: profile.name, baseUrl: profile.baseUrl, model: profile.model, hasKey: true } : undefined;
+    },
+    remove: async (id) => {
+      await providerService.store.remove(id);
     },
   });
 
