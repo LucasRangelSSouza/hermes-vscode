@@ -51,6 +51,7 @@ const dragHandle       = document.getElementById('input-drag') as HTMLDivElement
 const inputRow         = document.getElementById('input-row') as HTMLDivElement;
 const composer         = document.getElementById('composer') as HTMLDivElement;
 const statusSessionEl  = document.getElementById('status-session') as HTMLButtonElement;
+const newSessionBtn    = document.getElementById('new-session-btn') as HTMLButtonElement;
 const statusContextEl  = document.getElementById('status-context')!;
 const statusVersionEl  = document.getElementById('status-version')!;
 const ctxBarWrap       = document.getElementById('ctx-bar-wrap') as HTMLDivElement;
@@ -266,6 +267,11 @@ statusSessionEl.addEventListener('click', (e) => {
   closeFn(); if (!open) sessionPicker.style.display = 'block';
 });
 setupSessionPickerHandlers(sessionPicker, vscode, S, closeFn);
+newSessionBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  closeFn();
+  vscode.postMessage({ type: 'newSession' } as any);
+});
 
 // Model switcher
 modelBtnHeader.addEventListener('click', (e) => {

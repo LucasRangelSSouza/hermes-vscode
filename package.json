@@ -63,7 +63,9 @@
     "Machine Learning",
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "capabilities": {
     "untrustedWorkspaces": {
@@ -166,7 +168,7 @@
         {
           "id": "hermesRangelTech",
           "title": "Hermes",
-          "icon": "resources/hermes-icon.svg"
+          "icon": "resources/hermes-icon.png"
         }
       ]
     },

@@ -147,7 +147,7 @@ ${CSS_TEMPLATE}
   </div>
   <div id="header">
     <div id="header-brand">
-      <span class="brand-icon">☤</span>
+      <img class="brand-icon" src="${logoUri}" alt=""/>
       <span class="brand-text">Hermes</span>
       <span class="brand-version" id="status-version"></span>
       <span class="brand-sep">·</span>
@@ -158,7 +158,8 @@ ${CSS_TEMPLATE}
       <button id="settings-btn-header" title="Hermes settings">⚙</button>
     </div>
     <div id="header-session">
-      <button id="status-session" title="Sessions">new session</button>
+      <button id="status-session" title="Session history">🕐 new session</button>
+      <button id="new-session-btn" title="New chat">＋</button>
       <div id="status-right">
         <div id="ctx-bar-wrap" style="display:none"><div id="ctx-bar"></div><div id="ctx-bar-fresh"></div></div>
         <span id="status-context"></span>
@@ -173,7 +174,7 @@ ${CSS_TEMPLATE}
   </div>
   <div id="messages">
     <div id="empty-state">
-      <div class="empty-logo">☤</div>
+      <div class="empty-logo"><img src="${logoUri}" alt=""/></div>
       <div class="empty-title">What can I help you with?</div>
       <div class="prompt-chips">
         <div class="prompt-chip" data-prompt="Review this file">Review this file</div>
@@ -280,7 +281,7 @@ const CSS_TEMPLATE = /* css */ `
       padding: 5px 8px 2px;
       font-size: 0.85em;
     }
-    #header-brand .brand-icon { font-size: 1.4em; color: var(--gold); }
+    #header-brand .brand-icon { width: 18px; height: 18px; object-fit: contain; }
     #header-brand .brand-text { font-weight: 700; color: var(--gold); letter-spacing: 0.04em; }
     #header-brand .brand-sep { opacity: 0.3; }
     #header-brand .brand-version { opacity: 0.4; font-size: 0.85em; }
@@ -315,6 +316,12 @@ const CSS_TEMPLATE = /* css */ `
       padding: 0; text-align: left; min-width: 0;
     }
     #status-session:hover { color: var(--gold); }
+    #new-session-btn {
+      flex: none; cursor: pointer; background: none; border: none;
+      color: var(--vscode-descriptionForeground); font: inherit;
+      font-size: 1em; line-height: 1; padding: 0 2px;
+    }
+    #new-session-btn:hover { color: var(--gold); }
     *:focus-visible {
       outline: 1px solid var(--vscode-focusBorder, var(--gold));
       outline-offset: 1px;
@@ -700,7 +707,8 @@ const CSS_TEMPLATE = /* css */ `
       justify-content: center; gap: 12px; padding: 24px 16px;
       flex: 1; text-align: center;
     }
-    #empty-state .empty-logo { font-size: 2.5em; color: var(--gold); opacity: 0.5; }
+    #empty-state .empty-logo { opacity: 0.6; }
+    #empty-state .empty-logo img { width: 56px; height: 56px; object-fit: contain; }
     #empty-state .empty-title {
       font-family: var(--ui-font); font-size: 0.95em;
       color: var(--vscode-descriptionForeground);
