@@ -235,17 +235,17 @@ ${CSS_TEMPLATE}
 // ── CSS ──────────────────────────────────────────────
 // Extracted as a template literal constant for readability.
 // All colors use --vscode-* variables where possible;
-// --gold is the only custom accent.
+// --gold is the only custom accent (Dracula-style purple, despite the name).
 
 const CSS_TEMPLATE = /* css */ `
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
       --ui-font: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      --gold: #F5C542;
-      --gold-dim: rgba(245, 197, 66, 0.65);
-      --gold-subtle: rgba(245, 197, 66, 0.12);
-      --gold-border: rgba(245, 197, 66, 0.25);
+      --gold: #2E86DE;
+      --gold-dim: rgba(46, 134, 222, 0.65);
+      --gold-subtle: rgba(46, 134, 222, 0.12);
+      --gold-border: rgba(46, 134, 222, 0.25);
       --toolbar-height: 28px;
       --space-xs: 2px;
       --space-sm: 4px;
@@ -599,7 +599,7 @@ const CSS_TEMPLATE = /* css */ `
     }
     #remote-login-submit {
       margin-top: 12px; padding: 7px 12px; border: none; border-radius: 4px;
-      background: var(--gold); color: #1a1400; font-weight: 600; font-size: 0.88em;
+      background: var(--gold); color: #ffffff; font-weight: 600; font-size: 0.88em;
       cursor: pointer; font-family: inherit;
     }
     #remote-login-submit:hover { background: #ffd766; }
@@ -681,7 +681,7 @@ const CSS_TEMPLATE = /* css */ `
     }
     #settings-test-btn:hover { border-color: var(--gold-dim); }
     #settings-save-btn {
-      background: var(--gold); border: none; color: #1a1400; font-weight: 600;
+      background: var(--gold); border: none; color: #ffffff; font-weight: 600;
     }
     #settings-save-btn:hover { background: #ffd766; }
     #settings-test-btn:disabled, #settings-save-btn:disabled { opacity: 0.6; cursor: default; }
@@ -947,13 +947,13 @@ const CSS_TEMPLATE = /* css */ `
       letter-spacing: 0.02em; border: none; border-radius: 4px;
       cursor: pointer; padding: 4px 12px; height: var(--toolbar-height);
     }
-    #send-btn { background: var(--gold); color: #1e1e1e; min-width: 56px; }
+    #send-btn { background: var(--gold); color: #ffffff; min-width: 56px; }
     #send-btn:hover { background: #E8C940; }
     #busy-btns { display: none; gap: 2px; }
     #busy-btns button { min-width: 32px; font-size: 1em; padding: 4px 8px; }
     #stop-btn { background: var(--vscode-errorForeground, #C94040); color: #FFF; }
     #stop-btn:hover { opacity: 0.85; }
-    #queue-btn { background: var(--gold); color: #1e1e1e; }
+    #queue-btn { background: var(--gold); color: #ffffff; }
     #queue-btn:hover { opacity: 0.85; }
 
     /* Logo (centered in bottom bar) */
@@ -1003,7 +1003,7 @@ const CSS_TEMPLATE = /* css */ `
       font-family: var(--ui-font); font-size: 0.7em;
     }
     .queued-action:hover { border-color: var(--gold-border); color: var(--gold); }
-    .queued-action.primary { background: var(--gold); color: #1e1e1e; border-color: var(--gold); }
+    .queued-action.primary { background: var(--gold); color: #ffffff; border-color: var(--gold); }
     .queued-action.danger:hover { color: var(--vscode-errorForeground, #f48771); border-color: var(--vscode-errorForeground, #f48771); }
     .queued-edit-input {
       width: 100%; min-height: 54px; resize: vertical; padding: 5px 6px;
