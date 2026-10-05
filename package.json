@@ -327,7 +327,7 @@
   },
   "devDependencies": {
     "@secretlint/secretlint-rule-preset-recommend": "^10.2.2",
-    "@types/dompurify": "^3.0.5",
+    "@types/dompurify": "^3.2.0",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@vscode/test-electron": "^3.1.0",
@@ -340,8 +340,8 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "dompurify": "^3.4.12",
-    "marked": "^17.0.6",
+    "dompurify": "^3.4.16",
+    "marked": "^18.0.14",
     "tar": "^7.4.3"
   }
 }
