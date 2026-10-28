@@ -6,6 +6,12 @@ A community VS Code integration for [Hermes Agent](https://hermes-agent.nousrese
 
 It is derived from the MIT-licensed [`hermes-vscode`](https://github.com/stefanpieter/hermes-vscode) client (originally by Joao Peixoto). See [NOTICE](NOTICE).
 
+## Codebase at a glance
+
+![Code composition](docs/code_composition.png)
+
+Lines of code per language, counted from the repository files (generated and vendored folders excluded).
+
 ## What you get
 
 - Streaming Hermes chat in the VS Code sidebar, with reasoning, tool calls, todos and usage.
